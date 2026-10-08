@@ -18,7 +18,7 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [x] F9 LLM provider switch: OpenAI-compatible (Groq, Gemini, OpenRouter, Ollama, OpenAI) or Claude
 - [x] F10 CLI: `serve`, `init-db`, `create-tenant`, `gen-secret`, `check-llm`
 - [x] F11 Dockerfile + docker-compose (Postgres with pgvector, Redis, API)
-- [ ] F12 Verified against a real Postgres (waiting on Docker Desktop install)
+- [x] F12 Verified against real Postgres 17 + pgvector 0.8.7 in Docker: 9 tables, 12 indexes, key create/list/revoke, scope 403, revoked 401, tenant isolation on keys
 - [x] F13 Project renamed to DataChat Agent: `pip install datachat-agent`, `import datachat_agent`, CLI `datachat-agent` (`datachat` is taken on PyPI)
 - [ ] F14 Alembic migrations instead of `create_all` (needed before the first release)
 - [ ] F15 GitHub Actions: pytest + ruff on every push (moved up from week 7)
