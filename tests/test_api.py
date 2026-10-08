@@ -16,3 +16,27 @@ def test_admin_routes_reject_missing_key():
         r = client.get(path)
         assert r.status_code == 401
         assert r.headers["www-authenticate"] == "Bearer"
+
+
+def test_server_refuses_to_start_without_secret_key(monkeypatch):
+    import pytest
+
+    from datachat_agent.config import get_settings
+
+    monkeypatch.setenv("SECRET_KEY", "")
+    get_settings.cache_clear()
+    with pytest.raises(RuntimeError, match="gen-secret"):
+        with TestClient(create_app()):
+            pass
+
+
+def test_server_refuses_invalid_secret_key(monkeypatch):
+    import pytest
+
+    from datachat_agent.config import get_settings
+
+    monkeypatch.setenv("SECRET_KEY", "not-a-fernet-key")
+    get_settings.cache_clear()
+    with pytest.raises(RuntimeError, match="not a valid key"):
+        with TestClient(create_app()):
+            pass

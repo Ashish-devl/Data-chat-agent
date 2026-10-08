@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import field_validator
@@ -20,8 +21,18 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_model: str = ""
 
+    # "local" runs on CPU with no key; "hash" is a tiny fake for tests only.
+    embed_provider: Literal["local", "openai_compatible", "hash"] = "local"
     embed_model: str = "BAAI/bge-small-en-v1.5"
     embed_dim: int = 384
+    embed_base_url: str | None = None
+    embed_api_key: str = ""
+    models_cache_dir: Path = Path.home() / ".cache" / "datachat-agent" / "models"
+
+    # Guards on every query against a customer database.
+    sql_timeout_seconds: int = 10
+    sql_max_rows: int = 500
+    sql_max_response_bytes: int = 5_000_000
 
     @field_validator("database_url")
     @classmethod
@@ -29,10 +40,10 @@ class Settings(BaseSettings):
         # Railway and most hosts hand out postgres:// or postgresql:// URLs.
         for prefix in ("postgres://", "postgresql://"):
             if v.startswith(prefix):
-                return "postgresql+asyncpg://" + v[len(prefix):]
+                return "postgresql+asyncpg://" + v[len(prefix) :]
         return v
 
-    @field_validator("llm_base_url")
+    @field_validator("llm_base_url", "embed_base_url")
     @classmethod
     def empty_is_none(cls, v: str | None) -> str | None:
         return v or None

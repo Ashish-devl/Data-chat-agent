@@ -20,31 +20,32 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [x] F11 Dockerfile + docker-compose (Postgres with pgvector, Redis, API)
 - [x] F12 Verified against real Postgres 17 + pgvector 0.8.7 in Docker: 9 tables, 12 indexes, key create/list/revoke, scope 403, revoked 401, tenant isolation on keys
 - [x] F13 Project renamed to DataChat Agent: `pip install datachat-agent`, `import datachat_agent`, CLI `datachat-agent` (`datachat` is taken on PyPI)
-- [ ] F14 Alembic migrations instead of `create_all` (needed before the first release)
-- [ ] F15 GitHub Actions: pytest + ruff on every push (moved up from week 7)
+- [x] F14 Alembic migrations (`migrations/`, shipped inside the package); `init-db` runs them; up/down/re-up and model-match checked
+- [x] F15 GitHub Actions (`.github/workflows/ci.yml`): ruff + format check + all tests on Python 3.11 and 3.12 against Postgres and MySQL services; Docker image build
 
 ## Week 2 — SQL core
-- [ ] S1 `POST /v1/connections` (dialect, DSN, schema allowlist); DSN encrypted
-- [ ] S2 `POST /v1/connections/{id}/test`: connects and **refuses a user that can write** (fails closed)
-- [ ] S3 PostgreSQL (psycopg 3) and MySQL (PyMySQL) drivers via SQLAlchemy
-- [ ] S4 `POST /v1/connections/{id}/scan`: tables, columns, types, PK/FK, row counts, up to 5 sample values per text column, skipping hidden columns
-- [ ] S5 `GET /v1/connections/{id}/schema`
-- [ ] S6 `PATCH /v1/schema-items/{id}`: description, hidden flag
-- [ ] S7 Embeddings module: local sentence-transformers (default) or OpenAI; `EMBED_DIM` checked
-- [ ] S8 Schema retriever: vector top 5–8 tables + FK expansion
-- [ ] S9 SQL generator: question + compact schema + semantic layer + dialect + few-shot pairs + history
-- [ ] S10 Validator (sqlglot): parses; single SELECT (CTEs ok); no DML/DDL, `pg_sleep`, `COPY`, `dblink`, file functions; allowlisted tables only; no hidden columns; LIMIT ≤ 500 added
-- [ ] S11 Executor: read-only transaction, `statement_timeout` 10 s, row-filter templates wrapped around the query, 5 MB response cap
-- [ ] S12 Validator test suite: 60+ reject/allow cases
-- [ ] S13 Gap: `GET/PATCH/DELETE /v1/connections/{id}` and `GET /v1/connections` (the console needs them)
+- [x] S1 `POST /v1/connections` (dialect detected from DSN, schema allowlist, row filters); DSN encrypted; password never returned
+- [x] S2 `POST /v1/connections/{id}/test`: refuses superusers, write grants, CREATE on schemas/database (Postgres) and any non-SELECT grant (MySQL); any error fails closed; fix hint in `status_detail`
+- [x] S3 PostgreSQL (psycopg 3) and MySQL (PyMySQL) drivers via SQLAlchemy, pooled engines with connect timeouts
+- [x] S4 `POST /v1/connections/{id}/scan`: tables + views, columns, types, PK/FK, row counts, up to 5 sample values per text column, skipping hidden items; re-checks read-only first; keeps admin edits on rescan (runs in the request until P4 moves it to a background job)
+- [x] S5 `GET /v1/connections/{id}/schema`
+- [x] S6 `PATCH /v1/schema-items/{id}`: description (re-embedded), hidden flag (clears sample values; hiding a table clears all its columns' samples)
+- [x] S7 Embeddings: local `BAAI/bge-small-en-v1.5` via fastembed (lighter than sentence-transformers: no PyTorch) or any OpenAI-compatible API; wrong `EMBED_DIM` fails with a clear message
+- [x] S8 Schema retriever: all tables when ≤ 8, else vector top 5 + FK neighbours up to 8; hidden items never shown to the model
+- [~] S9 SQL generator: question + compact schema + business terms + dialect + few-shot pairs + history; `NO_SQL:` reply for unanswerable questions. Tested with a fake model; **still to do: run against a real model with your key**
+- [x] S10 Validator (sqlglot): one SELECT (CTEs/UNION ok); no DML/DDL/commands, writes hidden in CTEs, SELECT INTO, FOR UPDATE; denylisted functions (`pg_*`, `sleep`, `dblink`, file, lock, sequence); allowlisted tables only; no table functions; no hidden columns or `SELECT *` over them; LIMIT ≤ 500 enforced
+- [x] S11 Executor: read-only transaction (Postgres + MySQL), 10 s timeout (`statement_timeout` / `MAX_EXECUTION_TIME`), row filters wrapped around every use of a table (fail closed without user context), 500-row and 5 MB caps
+- [x] S12 Validator test suite: 130+ reject/allow cases
+- [x] S13 `GET/PATCH/DELETE /v1/connections/{id}` and `GET /v1/connections`
+- [x] S14 `datachat-agent ask-sql` CLI: question → SQL → rows, for demos before `/v1/ask` exists
 
 ## Week 3 — Agent
 - [ ] A1 LangGraph graph: route → retrieve → generate SQL → validate → run → answer
 - [ ] A2 Router: database, documents or both
-- [ ] A3 Repair loop: one retry with the DB error, then a clear failure message
+- [x] A3 Repair loop: one retry with the validator or database error, then a clear failure message; no retry after a timeout (`sql/pipeline.py`)
 - [ ] A4 Fixed tool set: `list_tables`, `describe_table`, `run_sql`, `search_documents`, `get_document_items`
 - [ ] A5 Session memory so follow-ups work; `GET /v1/sessions/{id}`
-- [ ] A6 Says "I don't know" when neither source has the answer
+- [~] A6 Says "I don't know" when neither source has the answer (SQL side done: `NO_SQL:`; documents side in week 4)
 - [ ] A7 `POST /v1/ask`: answer, route, sql, rows, citations, chart hint, session_id, latency_ms
 - [ ] A8 Every question written to `query_log` (question, route, SQL, rows, chunks, latency, tokens)
 - [ ] A9 Semantic layer: business terms ("active order" = status not Closed) outrank raw column names
@@ -89,13 +90,13 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [ ] D10 Docker image published (GitHub Container Registry)
 
 ## Week 7 — Evaluation, security, tests
-- [ ] E1 Sample databases: Chinook or Northwind + an 8-table mini-ERP for a garment factory (made-up data)
+- [~] E1 Sample databases: 8-table garment mini-ERP done for Postgres and MySQL with read-only and writer users (`eval/datasets/erp_demo.py`); Chinook or Northwind still to add
 - [ ] E2 20 sample PDFs: invoices, a buyer manual, a price list (made-up)
 - [ ] E3 100 questions with expected answers: 60 database, 30 documents, 10 both
 - [ ] E4 `eval/run_eval.py` reporting all six metrics; score in the README
 - [ ] E5 Targets: SQL accuracy 80%, schema recall 95%, document accuracy 85%, citation precision 90%, refusal 90%, median latency < 4 s
-- [ ] E6 Executor tests: timeout fires, LIMIT applied, row filter applied, write fails on a read-only user
-- [ ] E7 Tenancy tests: tenant A's key can't see tenant B's connections, documents, logs or keys
+- [x] E6 Executor tests: timeout fires, LIMIT applied, row filter applied, write fails on a read-only user and inside the read-only transaction even for a writer
+- [~] E7 Tenancy tests: keys, connections (every route) and schema items done; documents and logs when they exist
 - [ ] E8 Auth tests: revoked key, wrong scope, publishable key limits
 - [ ] E9 Feedback → evaluation set export
 
@@ -106,6 +107,7 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [ ] L4 README quickstart for all five ways to use it; API reference; screenshots
 - [ ] L5 Demo video
 - [ ] L6 Deploy: API + Postgres + Redis on Railway, console on Vercel
+- [ ] L9 Hosted mode only: block customer DSNs that point at private or internal network addresses (SSRF guard); self-hosters keep private addresses
 - [ ] L7 Release v1.0.0: tag, PyPI, npm, Docker image, GitHub release notes
 - [ ] L8 **Checkpoint:** every box above ticked and evaluation targets met
 

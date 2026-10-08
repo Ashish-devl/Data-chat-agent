@@ -82,7 +82,9 @@ class Connection(Base):
     schema_allowlist: Mapped[list[str]] = mapped_column(ARRAY(String(200)), default=list)
     # Row-level filter templates, e.g. {"orders": "company_id = :user_company"}
     row_filters: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    status: Mapped[str] = mapped_column(String(20), default="new")
+    status: Mapped[str] = mapped_column(String(20), default="new")  # new|ok|rejected|error
+    status_detail: Mapped[str | None] = mapped_column(Text)
+    last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created_at()
 
 
@@ -93,9 +95,13 @@ class SchemaItem(Base):
     connection_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("connections.id", ondelete="CASCADE"), index=True
     )
+    schema_name: Mapped[str] = mapped_column(String(200))  # Postgres schema or MySQL database
     table_name: Mapped[str] = mapped_column(String(200))
     column_name: Mapped[str | None] = mapped_column(String(200))  # NULL = the table itself
     data_type: Mapped[str | None] = mapped_column(String(100))
+    is_primary_key: Mapped[bool] = mapped_column(Boolean, default=False)
+    foreign_key: Mapped[str | None] = mapped_column(String(600))  # "schema.table.column"
+    row_count: Mapped[int | None] = mapped_column(BigInteger)  # table rows only
     description: Mapped[str | None] = mapped_column(Text)
     sample_values: Mapped[list[Any]] = mapped_column(JSONB, default=list)
     hidden: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -103,7 +109,11 @@ class SchemaItem(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "connection_id", "table_name", "column_name", postgresql_nulls_not_distinct=True
+            "connection_id",
+            "schema_name",
+            "table_name",
+            "column_name",
+            postgresql_nulls_not_distinct=True,
         ),
         Index(
             "ix_schema_items_embedding",

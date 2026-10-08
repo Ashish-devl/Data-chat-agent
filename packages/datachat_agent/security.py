@@ -29,7 +29,17 @@ def _fernet() -> Fernet:
     key = get_settings().secret_key
     if not key:
         raise RuntimeError("SECRET_KEY is not set. Generate one with: datachat-agent gen-secret")
-    return Fernet(key.encode())
+    try:
+        return Fernet(key.encode())
+    except ValueError:
+        raise RuntimeError(
+            "SECRET_KEY is not a valid key. Generate one with: datachat-agent gen-secret"
+        ) from None
+
+
+def check_secret_key() -> None:
+    """Raise a clear error at startup instead of failing on the first stored password."""
+    _fernet()
 
 
 def encrypt(plaintext: str) -> str:

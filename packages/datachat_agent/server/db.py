@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator
+from pathlib import Path
 
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from datachat_agent.config import get_settings
+
+MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
 
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
@@ -27,12 +29,24 @@ async def get_session() -> AsyncIterator[AsyncSession]:
         yield session
 
 
-async def init_db() -> None:
-    """Create the pgvector extension and all tables. Safe to run more than once."""
-    from datachat_agent.server.models import Base
+async def dispose_engine() -> None:
+    global _engine, _sessionmaker
+    if _engine is not None:
+        await _engine.dispose()
+    _engine = _sessionmaker = None
 
-    get_sessionmaker()
-    assert _engine is not None
-    async with _engine.begin() as conn:
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        await conn.run_sync(Base.metadata.create_all)
+
+def alembic_config(database_url: str | None = None):
+    from alembic.config import Config
+
+    cfg = Config()
+    cfg.set_main_option("script_location", str(MIGRATIONS_DIR))
+    cfg.attributes["database_url"] = database_url or get_settings().database_url
+    return cfg
+
+
+def run_migrations(database_url: str | None = None, revision: str = "head") -> None:
+    """Bring the database schema up to date. Safe to run more than once. Not for async code."""
+    from alembic import command
+
+    command.upgrade(alembic_config(database_url), revision)
