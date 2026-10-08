@@ -62,10 +62,20 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.integration)
 
 
+# On CI the databases are always provided, so a missing one is a failure, not a skip.
+ON_CI = os.environ.get("CI") == "true"
+
+
+def _missing(message: str) -> None:
+    if ON_CI:
+        pytest.fail(message)
+    pytest.skip(message)
+
+
 @pytest.fixture(scope="session")
 def databases():
     if not _reachable(PG_ADMIN_URL):
-        pytest.skip("Postgres not reachable; run: docker compose up -d db")
+        _missing("Postgres not reachable; run: docker compose up -d db")
     admin = create_engine(
         make_url(PG_ADMIN_URL).set(drivername="postgresql+psycopg"), isolation_level="AUTOCOMMIT"
     )
@@ -96,7 +106,7 @@ def client(databases):
 @pytest.fixture
 def mysql_available(databases):
     if not databases["mysql"]:
-        pytest.skip("MySQL not reachable; run: docker compose --profile dev up -d mysql")
+        _missing("MySQL not reachable; run: docker compose --profile dev up -d mysql")
 
 
 def make_tenant(client: TestClient, name: str | None = None) -> dict[str, str]:
