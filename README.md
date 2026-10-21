@@ -2,7 +2,7 @@
 
 An open-source AI agent that answers plain-English questions from your SQL database and your PDFs, and shows the SQL or page each answer came from.
 
-> Status: early development (v0.1, week 2 of 8). Not ready for production use.
+> Status: early development (v0.1, week 3 of 8). Not ready for production use.
 
 ## Bring your own model key
 
@@ -63,7 +63,38 @@ Describe or hide columns (hidden columns can never be queried):
 curl -X PATCH localhost:8000/v1/schema-items/<item id> -H "$KEY"   -H "Content-Type: application/json" -d '{"hidden": true}'
 ```
 
-Try a question from the command line:
+Teach it your business language and give it worked examples:
+
+```bash
+curl -X POST localhost:8000/v1/connections/<id>/terms -H "$KEY" -H "Content-Type: application/json"   -d '{"term": "open PO", "definition": "a purchase order whose status is Open or Partially Received"}'
+curl -X POST localhost:8000/v1/connections/<id>/examples -H "$KEY" -H "Content-Type: application/json"   -d '{"question": "Suppliers in Ludhiana", "sql": "SELECT name FROM suppliers WHERE city = '"'"'Ludhiana'"'"'"}'
+```
+
+## Ask questions
+
+```bash
+curl -X POST localhost:8000/v1/ask -H "$KEY" -H "Content-Type: application/json"   -d '{"question": "Which production orders are delayed?", "session_id": "chat-1"}'
+```
+
+```json
+{
+  "answer": "There are 13 delayed production orders in total ...",
+  "route": "database",
+  "sql": "SELECT ... LIMIT 500",
+  "columns": ["style_no", "qty_behind"],
+  "rows": [{"style_no": "26C1740", "qty_behind": 1390}],
+  "chart": {"type": "bar", "x": "style_no", "y": "qty_behind"},
+  "session_id": "chat-1",
+  "latency_ms": 7126
+}
+```
+
+Send the same `session_id` for follow-ups ("which buyers are those for?"); read a conversation
+with `GET /v1/sessions/chat-1`. Pass `connection_id` when you have more than one database, and
+`user_context` (e.g. `{"user_company": 7}`) when the connection uses row filters. Keys need the
+`ask` scope.
+
+Try the SQL step alone from the command line:
 
 ```bash
 datachat-agent ask-sql <connection id> "Which production orders are delayed?"

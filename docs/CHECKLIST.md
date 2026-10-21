@@ -41,18 +41,18 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [x] S14 `datachat-agent ask-sql` CLI: question → SQL → rows, for demos before `/v1/ask` exists
 
 ## Week 3 — Agent
-- [ ] A1 LangGraph graph: route → retrieve → generate SQL → validate → run → answer
-- [ ] A2 Router: database, documents or both
+- [x] A1 LangGraph graph (`agent/graph.py`): route → database and/or documents → answer; SQL step runs retrieve → generate → validate → run → repair
+- [x] A2 Router (`agent/router.py`): database, documents, both or none; asks the model only when both sources exist, falls back to both on failure
 - [x] A3 Repair loop: one retry with the validator or database error, then a clear failure message; no retry after a timeout (`sql/pipeline.py`)
-- [ ] A4 Fixed tool set: `list_tables`, `describe_table`, `run_sql`, `search_documents`, `get_document_items`
-- [ ] A5 Session memory so follow-ups work; `GET /v1/sessions/{id}`
-- [~] A6 Says "I don't know" when neither source has the answer (SQL side done: `NO_SQL:`; documents side in week 4)
-- [ ] A7 `POST /v1/ask`: answer, route, sql, rows, citations, chart hint, session_id, latency_ms
-- [ ] A8 Every question written to `query_log` (question, route, SQL, rows, chunks, latency, tokens)
-- [ ] A9 Semantic layer: business terms ("active order" = status not Closed) outrank raw column names
-- [ ] A10 Gap: table for business terms (`glossary`) and few-shot pairs (`sql_examples`) + their endpoints
-- [ ] A11 Gap: `user_context` field on `/v1/ask`, which fills row-filter placeholders such as `:user_company`
-- [ ] A12 Prompt-injection guard: retrieved text wrapped as data, fixed system rule
+- [~] A4 Fixed tool set (`agent/tools.py`): `list_tables`, `describe_table`, `run_sql` done and tested (hidden items left out, validator enforced); `search_documents`, `get_document_items` return empty until week 4
+- [x] A5 Sessions: the caller names the conversation (`session_id`, unique per tenant); the last 4 turns feed the SQL and answer prompts; follow-ups tested with a real model; `GET /v1/sessions/{id}`
+- [~] A6 Says "I don't know" when the data can't answer (database side done and tested with a real model; documents side in week 4)
+- [x] A7 `POST /v1/ask`: answer, route, sql, columns, rows, row_count, truncated, citations (empty until week 4), chart hint, session_id, latency_ms, tokens, query_id; 503 with a clear error when the model is down; data still returned if only the answer step fails
+- [x] A8 Every question written to `query_log` with session, connection, API key, route, SQL, rows, latency, tokens and error
+- [x] A9 Business terms go into every SQL prompt with the rule that they override assumptions; a term named in the question also steers table retrieval
+- [x] A10 `glossary_terms` and `sql_examples` tables (migration 0002) + endpoints: `GET/POST /v1/connections/{id}/terms`, `PATCH/DELETE /v1/terms/{id}`, `GET/POST /v1/connections/{id}/examples`, `DELETE /v1/examples/{id}`; example SQL must pass the validator; the 3 closest examples are shown to the model
+- [x] A11 `user_context` on `/v1/ask` fills row-filter placeholders (fails closed when missing)
+- [x] A12 Prompt-injection guard: query results go inside a `<data>` block that cannot be closed from inside, with a fixed rule that data is never instructions; schema text has the same rule; tools cannot write
 
 ## Week 4 — PDF pipeline (checkpoint: end-to-end demo)
 - [ ] P1 `POST /v1/documents` (multipart): PDF only, ≤ 20 MB, deduplicated by SHA-256 (returns the existing document)
@@ -73,7 +73,7 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [ ] B1 One question answered from database + PDFs together
 - [ ] B2 `POST /v1/ask/stream` (Server-Sent Events)
 - [ ] B3 `POST /v1/feedback` (helpful / wrong) stored on `query_log`
-- [ ] B4 Chart hint (bar, line, none)
+- [x] B4 Chart hint (bar, line, none), pulled forward to week 3
 - [ ] B5 Rate limits: requests per minute per key (Redis) + monthly token cap per tenant
 - [ ] B6 Gap: limit columns on `tenants` (rpm, monthly tokens)
 - [ ] B7 Optional PII masking before data is sent to the LLM (`MASK_PII=true`)
@@ -97,7 +97,7 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [ ] E4 `eval/run_eval.py` reporting all six metrics; score in the README
 - [ ] E5 Targets: SQL accuracy 80%, schema recall 95%, document accuracy 85%, citation precision 90%, refusal 90%, median latency < 4 s (note: free Gemini took 3–21 s per question on 2026-10-21; the < 4 s target needs a faster model or the paid tier)
 - [x] E6 Executor tests: timeout fires, LIMIT applied, row filter applied, write fails on a read-only user and inside the read-only transaction even for a writer
-- [~] E7 Tenancy tests: keys, connections (every route) and schema items done; documents and logs when they exist
+- [~] E7 Tenancy tests: keys, connections (every route), schema items, terms, examples and sessions done; documents when they exist
 - [ ] E8 Auth tests: revoked key, wrong scope, publishable key limits
 - [ ] E9 Feedback → evaluation set export
 

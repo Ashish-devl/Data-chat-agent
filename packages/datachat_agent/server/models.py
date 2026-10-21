@@ -190,7 +190,45 @@ class ChatSession(Base):
 
     id: Mapped[uuid.UUID] = _pk()
     tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    # The id the calling app uses for this conversation (e.g. "s1"); unique per tenant.
+    client_key: Mapped[str] = mapped_column(String(100))
     user_ref: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[datetime] = _created_at()
+
+    __table_args__ = (UniqueConstraint("tenant_id", "client_key"),)
+
+
+class GlossaryTerm(Base):
+    """Business terms, e.g. "active order" = status is not Closed or Cancelled."""
+
+    __tablename__ = "glossary_terms"
+
+    id: Mapped[uuid.UUID] = _pk()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    connection_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("connections.id", ondelete="CASCADE"), index=True
+    )
+    term: Mapped[str] = mapped_column(String(200))
+    definition: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBED_DIM))
+    created_at: Mapped[datetime] = _created_at()
+
+    __table_args__ = (UniqueConstraint("connection_id", "term"),)
+
+
+class SqlExample(Base):
+    """A verified question -> SQL pair shown to the model as a worked example."""
+
+    __tablename__ = "sql_examples"
+
+    id: Mapped[uuid.UUID] = _pk()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    connection_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("connections.id", ondelete="CASCADE"), index=True
+    )
+    question: Mapped[str] = mapped_column(Text)
+    sql: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBED_DIM))
     created_at: Mapped[datetime] = _created_at()
 
 
@@ -202,6 +240,12 @@ class QueryLog(Base):
     session_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("sessions.id", ondelete="SET NULL"), index=True
     )
+    connection_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("connections.id", ondelete="SET NULL")
+    )
+    api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("api_keys.id", ondelete="SET NULL")
+    )
     question: Mapped[str] = mapped_column(Text)
     route: Mapped[str | None] = mapped_column(String(20))  # database|documents|both
     sql: Mapped[str | None] = mapped_column(Text)
@@ -211,4 +255,7 @@ class QueryLog(Base):
     latency_ms: Mapped[int | None] = mapped_column(Integer)
     tokens: Mapped[int] = mapped_column(Integer, default=0)
     feedback: Mapped[str | None] = mapped_column(String(20))  # helpful|wrong
+    error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _created_at()
+
+    __table_args__ = (Index("ix_query_log_tenant_created", "tenant_id", "created_at"),)

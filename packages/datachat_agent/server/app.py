@@ -6,7 +6,15 @@ from fastapi import APIRouter, FastAPI
 from datachat_agent import __version__
 from datachat_agent.security import check_secret_key
 from datachat_agent.server.db import dispose_engine
-from datachat_agent.server.routes import connections, health, keys, schema_items, usage
+from datachat_agent.server.routes import (
+    ask,
+    connections,
+    health,
+    keys,
+    knowledge,
+    schema_items,
+    usage,
+)
 
 # Include-able in any FastAPI app: host_app.include_router(router, prefix="/ai")
 router = APIRouter(prefix="/v1")
@@ -15,6 +23,8 @@ router.include_router(keys.router)
 router.include_router(usage.router)
 router.include_router(connections.router)
 router.include_router(schema_items.router)
+router.include_router(knowledge.router)
+router.include_router(ask.router)
 
 
 @asynccontextmanager

@@ -49,12 +49,15 @@ async def answer_with_sql(
     examples: list[Example] | None = None,
     history: list[tuple[str, str]] | None = None,
     max_attempts: int = 2,
+    retrieval_text: str | None = None,
 ) -> SQLAnswer:
+    """`retrieval_text` (default: the question) is what finds the tables, e.g. the question plus
+    the previous one for follow-ups, or plus matching business-term definitions."""
     started = time.perf_counter()
     settings = get_settings()
     answer = SQLAnswer(question=question)
 
-    vector = await run_in_threadpool(embedder.embed_query, question)
+    vector = await run_in_threadpool(embedder.embed_query, retrieval_text or question)
     tables = await retrieve_schema(session, connection, vector)
     answer.tables_considered = [t.qualified for t in tables]
     policy = await build_policy(session, connection)
