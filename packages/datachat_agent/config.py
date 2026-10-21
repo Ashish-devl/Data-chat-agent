@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     llm_base_url: str | None = None
     llm_api_key: str = ""
     llm_model: str = ""
+    # Free tiers can be slow or overloaded; never let one call hang a request.
+    llm_timeout_seconds: float = 30
+    llm_max_retries: int = 1
+    # Comma-separated models to try, in order, when LLM_MODEL fails (same provider and key).
+    llm_fallback_models: str = ""
 
     # "local" runs on CPU with no key; "hash" is a tiny fake for tests only.
     embed_provider: Literal["local", "openai_compatible", "hash"] = "local"
@@ -47,6 +52,10 @@ class Settings(BaseSettings):
     @classmethod
     def empty_is_none(cls, v: str | None) -> str | None:
         return v or None
+
+    @property
+    def fallback_models(self) -> list[str]:
+        return [m.strip() for m in self.llm_fallback_models.split(",") if m.strip()]
 
 
 @lru_cache

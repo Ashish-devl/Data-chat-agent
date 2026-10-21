@@ -32,7 +32,8 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [x] S6 `PATCH /v1/schema-items/{id}`: description (re-embedded), hidden flag (clears sample values; hiding a table clears all its columns' samples)
 - [x] S7 Embeddings: local `BAAI/bge-small-en-v1.5` via fastembed (lighter than sentence-transformers: no PyTorch) or any OpenAI-compatible API; wrong `EMBED_DIM` fails with a clear message
 - [x] S8 Schema retriever: all tables when ≤ 8, else vector top 5 + FK neighbours up to 8; hidden items never shown to the model
-- [~] S9 SQL generator: question + compact schema + business terms + dialect + few-shot pairs + history; `NO_SQL:` reply for unanswerable questions. Tested with a fake model; **still to do: run against a real model with your key**
+- [x] S9 SQL generator: question + compact schema + business terms + dialect + few-shot pairs + history; `NO_SQL:` reply for unanswerable questions. Real-model check 2026-10-21 (Gemini 3.6 Flash, sample ERP): 5/5 data questions correct and 3/3 correct refusals (hidden salary, weather, delete), in two runs
+- [x] S15 Model reliability: per-call timeout and retries, backup models (`LLM_FALLBACK_MODELS`), and a clear error instead of a crash when the model is down
 - [x] S10 Validator (sqlglot): one SELECT (CTEs/UNION ok); no DML/DDL/commands, writes hidden in CTEs, SELECT INTO, FOR UPDATE; denylisted functions (`pg_*`, `sleep`, `dblink`, file, lock, sequence); allowlisted tables only; no table functions; no hidden columns or `SELECT *` over them; LIMIT ≤ 500 enforced
 - [x] S11 Executor: read-only transaction (Postgres + MySQL), 10 s timeout (`statement_timeout` / `MAX_EXECUTION_TIME`), row filters wrapped around every use of a table (fail closed without user context), 500-row and 5 MB caps
 - [x] S12 Validator test suite: 130+ reject/allow cases
@@ -94,7 +95,7 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [ ] E2 20 sample PDFs: invoices, a buyer manual, a price list (made-up)
 - [ ] E3 100 questions with expected answers: 60 database, 30 documents, 10 both
 - [ ] E4 `eval/run_eval.py` reporting all six metrics; score in the README
-- [ ] E5 Targets: SQL accuracy 80%, schema recall 95%, document accuracy 85%, citation precision 90%, refusal 90%, median latency < 4 s
+- [ ] E5 Targets: SQL accuracy 80%, schema recall 95%, document accuracy 85%, citation precision 90%, refusal 90%, median latency < 4 s (note: free Gemini took 3–21 s per question on 2026-10-21; the < 4 s target needs a faster model or the paid tier)
 - [x] E6 Executor tests: timeout fires, LIMIT applied, row filter applied, write fails on a read-only user and inside the read-only transaction even for a writer
 - [~] E7 Tenancy tests: keys, connections (every route) and schema items done; documents and logs when they exist
 - [ ] E8 Auth tests: revoked key, wrong scope, publishable key limits

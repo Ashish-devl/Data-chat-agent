@@ -5,6 +5,9 @@ from dataclasses import dataclass, field
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.runnables import Runnable
+
+from datachat_agent.core.llm import LLMUnavailableError, describe_llm_error
 
 DIALECT_NAMES = {"postgresql": "PostgreSQL", "mysql": "MySQL 8"}
 NO_SQL = "NO_SQL:"
@@ -87,8 +90,11 @@ def parse_response(text: str) -> GeneratedSQL:
     return GeneratedSQL(sql=sql or None, raw=text, reason=None if sql else "empty response")
 
 
-async def generate_sql(llm: BaseChatModel, req: SQLRequest) -> GeneratedSQL:
-    response = await llm.ainvoke(build_messages(req))
+async def generate_sql(llm: BaseChatModel | Runnable, req: SQLRequest) -> GeneratedSQL:
+    try:
+        response = await llm.ainvoke(build_messages(req))
+    except Exception as e:  # noqa: BLE001 - any provider failure becomes one clear error
+        raise LLMUnavailableError(describe_llm_error(e)) from e
     content = response.content if isinstance(response.content, str) else str(response.content)
     result = parse_response(content)
     usage = getattr(response, "usage_metadata", None) or {}

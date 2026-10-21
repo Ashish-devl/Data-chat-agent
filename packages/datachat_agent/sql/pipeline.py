@@ -8,11 +8,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import Runnable
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from datachat_agent.config import get_settings
 from datachat_agent.core.embeddings import Embedder
+from datachat_agent.core.llm import LLMUnavailableError
 from datachat_agent.security import decrypt
 from datachat_agent.server.models import Connection
 from datachat_agent.sql.connector import get_engine
@@ -33,13 +35,14 @@ class SQLAnswer:
     attempts: int = 0
     tokens: int = 0
     latency_ms: int = 0
+    llm_unavailable: bool = False
 
 
 async def answer_with_sql(
     session: AsyncSession,
     connection: Connection,
     question: str,
-    llm: BaseChatModel,
+    llm: BaseChatModel | Runnable,
     embedder: Embedder,
     user_context: dict[str, Any] | None = None,
     business_terms: list[str] | None = None,
@@ -67,7 +70,12 @@ async def answer_with_sql(
     )
     for attempt in range(1, max_attempts + 1):
         answer.attempts = attempt
-        generated = await generate_sql(llm, req)
+        try:
+            generated = await generate_sql(llm, req)
+        except LLMUnavailableError as e:
+            answer.error = str(e)
+            answer.llm_unavailable = True
+            break
         answer.tokens += generated.tokens
         if generated.sql is None:
             answer.cannot_answer = generated.reason or "The data does not cover this question."

@@ -179,3 +179,27 @@ def test_limit_applied_end_to_end(databases):
     policy = SchemaPolicy(tables={TableRef("public", "purchase_order_lines")})
     q = validate_sql("SELECT * FROM purchase_order_lines", "postgresql", policy, max_limit=7)
     assert execute_readonly(get_engine(PG_READONLY), "postgresql", q.sql).row_count == 7
+
+
+def test_model_outage_returns_clear_error_instead_of_crashing(client, admin):
+    from langchain_core.runnables import RunnableLambda
+
+    from datachat_agent.server.db import get_sessionmaker
+    from datachat_agent.server.models import Connection
+    from datachat_agent.sql.pipeline import answer_with_sql
+
+    conn = scanned_connection(client, admin, PG_READONLY)
+
+    def down(_):
+        raise RuntimeError("Error code: 503 - This model is experiencing high demand")
+
+    async def _run():
+        async with get_sessionmaker()() as session:
+            c = await session.get(Connection, uuid.UUID(conn["id"]))
+            return await answer_with_sql(
+                session, c, "How many buyers?", RunnableLambda(down), get_embedder()
+            )
+
+    ans = client.portal.call(_run)
+    assert ans.llm_unavailable and ans.result is None
+    assert "overloaded" in ans.error
