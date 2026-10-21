@@ -13,6 +13,16 @@ def serve(host: str = "127.0.0.1", port: int = 8000, reload: bool = False) -> No
     uvicorn.run("datachat_agent.server.app:app", host=host, port=port, reload=reload)
 
 
+@app.command()
+def worker() -> None:
+    """Run the background worker (set JOBS_BACKEND=arq; needs Redis)."""
+    from arq import run_worker
+
+    from datachat_agent.server.worker import WorkerSettings
+
+    run_worker(WorkerSettings)
+
+
 @app.command("init-db")
 def init_db() -> None:
     """Create or upgrade all tables (runs database migrations)."""

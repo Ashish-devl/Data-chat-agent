@@ -1,5 +1,6 @@
 """The fixed tool set. Every tool only reads; the same functions back the MCP server (week 6)."""
 
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -10,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from datachat_agent.config import get_settings
+from datachat_agent.core.embeddings import Embedder
+from datachat_agent.docs.search import find_items, search_passages
 from datachat_agent.security import decrypt
 from datachat_agent.server.models import Connection, SchemaItem
 from datachat_agent.sql.connector import get_engine
@@ -25,6 +28,8 @@ class ToolContext:
     session: AsyncSession
     connection: Connection | None
     user_context: dict[str, Any] = field(default_factory=dict)
+    tenant_id: uuid.UUID | None = None
+    embedder: Embedder | None = None
 
 
 async def _visible_items(ctx: ToolContext) -> list[SchemaItem]:
@@ -114,15 +119,51 @@ async def run_sql(ctx: ToolContext, sql: str) -> dict[str, Any]:
 
 
 async def search_documents(ctx: ToolContext, query: str) -> dict[str, Any]:
-    """Search uploaded PDFs. Available once documents are supported (week 4)."""
-    return {"results": [], "note": "Document search is not available yet."}
+    """Search uploaded PDFs; returns the best passages with file name and page."""
+    if ctx.tenant_id is None or ctx.embedder is None:
+        return {"results": [], "note": "Document search is not available here."}
+    vector = await run_in_threadpool(ctx.embedder.embed_query, query)
+    passages = await search_passages(ctx.session, ctx.tenant_id, query, vector)
+    return {
+        "results": [
+            {
+                "document": p.filename,
+                "document_id": str(p.document_id),
+                "page": p.page,
+                "section": p.heading,
+                "text": p.text,
+            }
+            for p in passages
+        ]
+    }
 
 
 async def get_document_items(
     ctx: ToolContext, document: str | None = None, item: str | None = None
 ) -> dict[str, Any]:
-    """Line items extracted from PDF tables. Available once documents are supported (week 4)."""
-    return {"items": [], "note": "Document line items are not available yet."}
+    """Line items (item, qty, unit, rate, amount) from PDF tables, filtered by document or item."""
+    if ctx.tenant_id is None:
+        return {"items": [], "note": "Document items are not available here."}
+    rows = await find_items(ctx.session, ctx.tenant_id, document, item)
+    return {
+        "items": [
+            {
+                "document": r.filename,
+                "document_date": r.doc_date.isoformat() if r.doc_date else None,
+                "page": r.page,
+                "item": r.item,
+                "qty": _f(r.qty),
+                "unit": r.unit,
+                "rate": _f(r.rate),
+                "amount": _f(r.amount),
+            }
+            for r in rows
+        ]
+    }
+
+
+def _f(v) -> float | None:
+    return float(v) if v is not None else None
 
 
 class _TableArg(BaseModel):

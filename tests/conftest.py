@@ -13,6 +13,8 @@ os.environ.update(
         "SECRET_KEY": Fernet.generate_key().decode(),
         "LLM_MODEL": "test-model",
         "EMBED_PROVIDER": "hash",  # no model download in tests
+        "JOBS_BACKEND": "sync",  # uploads are processed before the response returns
+        "LLM_FALLBACK_MODELS": "",
     }
 )
 

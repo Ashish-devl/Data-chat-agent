@@ -44,9 +44,9 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [x] A1 LangGraph graph (`agent/graph.py`): route → database and/or documents → answer; SQL step runs retrieve → generate → validate → run → repair
 - [x] A2 Router (`agent/router.py`): database, documents, both or none; asks the model only when both sources exist, falls back to both on failure
 - [x] A3 Repair loop: one retry with the validator or database error, then a clear failure message; no retry after a timeout (`sql/pipeline.py`)
-- [~] A4 Fixed tool set (`agent/tools.py`): `list_tables`, `describe_table`, `run_sql` done and tested (hidden items left out, validator enforced); `search_documents`, `get_document_items` return empty until week 4
+- [x] A4 Fixed tool set (`agent/tools.py`): `list_tables`, `describe_table`, `run_sql`, `search_documents`, `get_document_items`; all read-only, hidden items left out
 - [x] A5 Sessions: the caller names the conversation (`session_id`, unique per tenant); the last 4 turns feed the SQL and answer prompts; follow-ups tested with a real model; `GET /v1/sessions/{id}`
-- [~] A6 Says "I don't know" when the data can't answer (database side done and tested with a real model; documents side in week 4)
+- [x] A6 Says "I don't know" when neither source has the answer (database and documents; checked with a real model)
 - [x] A7 `POST /v1/ask`: answer, route, sql, columns, rows, row_count, truncated, citations (empty until week 4), chart hint, session_id, latency_ms, tokens, query_id; 503 with a clear error when the model is down; data still returned if only the answer step fails
 - [x] A8 Every question written to `query_log` with session, connection, API key, route, SQL, rows, latency, tokens and error
 - [x] A9 Business terms go into every SQL prompt with the rule that they override assumptions; a term named in the question also steers table retrieval
@@ -55,22 +55,22 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [x] A12 Prompt-injection guard: query results go inside a `<data>` block that cannot be closed from inside, with a fixed rule that data is never instructions; schema text has the same rule; tools cannot write
 
 ## Week 4 — PDF pipeline (checkpoint: end-to-end demo)
-- [ ] P1 `POST /v1/documents` (multipart): PDF only, ≤ 20 MB, deduplicated by SHA-256 (returns the existing document)
-- [ ] P2 Bytes stored in `documents.file_bytes`; `GET /v1/documents/{id}/file` downloads the original
-- [ ] P3 `GET /v1/documents`, `GET /v1/documents/{id}/items`, `DELETE /v1/documents/{id}`
-- [ ] P4 Background jobs (Arq + Redis) for ingestion and schema scans
-- [ ] P5 Text per page with PyMuPDF; scanned PDF (no text layer) → status `failed` with a reason
-- [ ] P6 Tables with pdfplumber → line items via header synonyms; rows that don't map go to the LLM once with a strict JSON schema
-- [ ] P7 Chunker: about 800 tokens, 100 overlap, never across pages, heading kept
-- [ ] P8 Embeddings + tsv; status `ready`
-- [ ] P9 Hybrid search: vector top 20 + keyword top 20, RRF, top 6
-- [ ] P10 `get_document_items` with filters (document, item name, date)
-- [ ] P11 Answers cite filename and page
-- [ ] P12 Ingestion tests: hash, page count, chunks, items, duplicate upload
-- [ ] P13 **Checkpoint:** demo answers the three example questions from the plan end to end
+- [x] P1 `POST /v1/documents` (multipart): PDF only (checked by content, 415), ≤ 20 MB (`MAX_PDF_MB`, 413), deduplicated per tenant by SHA-256 (200 with the existing document)
+- [x] P2 Bytes stored in `documents.file_bytes`; `GET /v1/documents/{id}/file` returns the original byte for byte
+- [x] P3 `GET /v1/documents`, `GET /v1/documents/{id}`, `GET /v1/documents/{id}/items`, `POST /v1/documents/{id}/reprocess`, `DELETE /v1/documents/{id}` (removes passages and items)
+- [x] P4 Background jobs: `JOBS_BACKEND` sync / inline / arq; `datachat-agent worker` (arq + Redis, checked on Windows); `worker` service in docker-compose; `POST /scan?wait=false` runs scans in the background
+- [x] P5 Text per page with **pdfplumber** (MIT; PyMuPDF dropped because it is AGPL); no text layer → status `failed` with a reason
+- [x] P6 Tables with pdfplumber → line items via header synonyms (Description/Particulars/Item, Qty/Quantity, Rate/Price, Amount/Value/Total…); total rows skipped; unmapped tables go to the model once with a strict JSON format (max 3 per document)
+- [x] P7 Chunker: about 800 tokens, 100 overlap, never across pages, section heading kept (migration 0003)
+- [x] P8 Embeddings + tsv; status `ready`; the document's printed date is stored (`doc_date`)
+- [x] P9 Hybrid search: vector top 20 + keyword top 20 (any-word match), reciprocal rank fusion, top 6
+- [x] P10 `get_document_items` with filters: document (file name or any text in it, e.g. an invoice number), item name, date range
+- [x] P11 Answers cite [n] → file name, page, section, snippet and a download link to that page
+- [x] P12 Ingestion tests: hash, page count, date, chunks, items, header variants, duplicate upload, scanned PDF, reprocess, delete, tenancy, scopes
+- [x] P13 **Checkpoint (2026-10-21, Gemini 3.6 Flash):** invoice total (INR 773,550, cited), manual on carton marking (page 2 cited), highest Cotton S/J rate across invoices (Shree Ganesh Knits, 438/kg, cited), a question needing database + manual (both parts answered), and an unknown question ("I don't know")
 
 ## Week 5 — Both sources
-- [ ] B1 One question answered from database + PDFs together
+- [x] B1 One question answered from database + PDFs together (router → SQL for the database part → document search → one cited answer; checked with a real model)
 - [ ] B2 `POST /v1/ask/stream` (Server-Sent Events)
 - [ ] B3 `POST /v1/feedback` (helpful / wrong) stored on `query_log`
 - [x] B4 Chart hint (bar, line, none), pulled forward to week 3
@@ -92,19 +92,19 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 
 ## Week 7 — Evaluation, security, tests
 - [~] E1 Sample databases: 8-table garment mini-ERP done for Postgres and MySQL with read-only and writer users (`eval/datasets/erp_demo.py`); Chinook or Northwind still to add
-- [ ] E2 20 sample PDFs: invoices, a buyer manual, a price list (made-up)
+- [~] E2 Sample PDFs (made-up): 4 invoices with different table headers, a 2-page buyer manual, a price list, an image-only scan (`eval/datasets/make_pdfs.py`); 13 more to reach 20
 - [ ] E3 100 questions with expected answers: 60 database, 30 documents, 10 both
 - [ ] E4 `eval/run_eval.py` reporting all six metrics; score in the README
 - [ ] E5 Targets: SQL accuracy 80%, schema recall 95%, document accuracy 85%, citation precision 90%, refusal 90%, median latency < 4 s (note: free Gemini took 3–21 s per question on 2026-10-21; the < 4 s target needs a faster model or the paid tier)
 - [x] E6 Executor tests: timeout fires, LIMIT applied, row filter applied, write fails on a read-only user and inside the read-only transaction even for a writer
-- [~] E7 Tenancy tests: keys, connections (every route), schema items, terms, examples and sessions done; documents when they exist
+- [x] E7 Tenancy tests: keys, connections (every route), schema items, terms, examples, sessions and documents (every route); same file or session key in two tenants stays separate
 - [ ] E8 Auth tests: revoked key, wrong scope, publishable key limits
 - [ ] E9 Feedback → evaluation set export
 
 ## Week 8 — Launch (checkpoint: evaluation targets met)
 - [ ] L1 Admin console (React + Vite): connections, documents, semantic layer, keys, users, query log, usage
 - [ ] L2 Console login: email + password (decided 2026-10-08): `users` table (tenant, email, password hash, role owner/member), sessions, password reset by CLI
-- [ ] L3 Nightly schema re-scan (scheduled job)
+- [x] L3 Nightly schema re-scan: arq cron at 02:00 re-reads every working connection (`server/worker.py`)
 - [ ] L4 README quickstart for all five ways to use it; API reference; screenshots
 - [ ] L5 Demo video
 - [ ] L6 Deploy: API + Postgres + Redis on Railway, console on Vercel

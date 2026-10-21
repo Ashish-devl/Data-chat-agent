@@ -50,6 +50,7 @@ async def answer_with_sql(
     history: list[tuple[str, str]] | None = None,
     max_attempts: int = 2,
     retrieval_text: str | None = None,
+    partial: bool = False,
 ) -> SQLAnswer:
     """`retrieval_text` (default: the question) is what finds the tables, e.g. the question plus
     the previous one for follow-ups, or plus matching business-term definitions."""
@@ -70,6 +71,7 @@ async def answer_with_sql(
         business_terms=business_terms or [],
         examples=examples or [],
         history=history or [],
+        partial=partial,
     )
     for attempt in range(1, max_attempts + 1):
         answer.attempts = attempt

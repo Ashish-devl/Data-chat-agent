@@ -129,3 +129,11 @@ def test_router_asks_the_model_when_both_exist(reply, expected):
 
 def test_router_looks_everywhere_when_model_fails():
     assert route(ScriptedChat([RuntimeError("timeout")]), True, True) == "both"
+
+
+def test_partial_sql_rule_only_for_mixed_questions():
+    from datachat_agent.sql.generator import SQLRequest, build_messages
+
+    base = dict(question="q", schema_text="TABLE public.t (id int)", dialect="postgresql")
+    assert "(searched separately)" not in build_messages(SQLRequest(**base))[0].content
+    assert "(searched separately)" in build_messages(SQLRequest(**base, partial=True))[0].content

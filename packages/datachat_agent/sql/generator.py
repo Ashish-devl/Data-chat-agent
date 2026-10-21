@@ -50,10 +50,19 @@ class SQLRequest:
     history: list[tuple[str, str]] = field(default_factory=list)  # (question, sql) pairs
     previous_sql: str | None = None
     previous_error: str | None = None
+    partial: bool = False  # another source (documents) covers the rest of the question
+
+
+PARTIAL_RULE = """- The question may also ask about uploaded documents (searched separately).
+  Write SQL for the parts the schema can answer and ignore the rest. Use {no_sql} only when
+  no part of the question can be answered from the schema.
+"""
 
 
 def build_messages(req: SQLRequest) -> list[BaseMessage]:
     system = SYSTEM_PROMPT.format(dialect=DIALECT_NAMES[req.dialect], no_sql=NO_SQL)
+    if req.partial:
+        system += PARTIAL_RULE.format(no_sql=NO_SQL)
     context = [f"Schema:\n{req.schema_text}"]
     if req.business_terms:
         context.append("Business terms:\n" + "\n".join(f"- {t}" for t in req.business_terms))

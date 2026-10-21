@@ -1,5 +1,6 @@
 """DataChat's own tables. The customer's database is only ever read, never written."""
 
+import datetime as dt
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -10,6 +11,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     Computed,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -135,7 +137,10 @@ class Document(Base):
     sha256: Mapped[str] = mapped_column(String(64))
     file_bytes: Mapped[bytes] = mapped_column(LargeBinary, deferred=True)
     pages: Mapped[int | None] = mapped_column(Integer)
-    status: Mapped[str] = mapped_column(String(20), default="queued")  # queued|ready|failed
+    doc_date: Mapped[dt.date | None] = mapped_column(Date)  # the date printed on the document
+    status: Mapped[str] = mapped_column(
+        String(20), default="queued"
+    )  # queued|processing|ready|failed
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _created_at()
 
@@ -151,6 +156,7 @@ class DocumentChunk(Base):
     )
     page: Mapped[int] = mapped_column(Integer)
     chunk_index: Mapped[int] = mapped_column(Integer)
+    heading: Mapped[str | None] = mapped_column(String(300))
     text: Mapped[str] = mapped_column(Text)
     tsv: Mapped[Any] = mapped_column(
         TSVECTOR, Computed("to_tsvector('english', text)", persisted=True)

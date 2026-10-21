@@ -2,7 +2,7 @@
 
 An open-source AI agent that answers plain-English questions from your SQL database and your PDFs, and shows the SQL or page each answer came from.
 
-> Status: early development (v0.1, week 3 of 8). Not ready for production use.
+> Status: early development (v0.1, week 4 of 8). Not ready for production use.
 
 ## Bring your own model key
 
@@ -93,6 +93,35 @@ Send the same `session_id` for follow-ups ("which buyers are those for?"); read 
 with `GET /v1/sessions/chat-1`. Pass `connection_id` when you have more than one database, and
 `user_context` (e.g. `{"user_company": 7}`) when the connection uses row filters. Keys need the
 `ask` scope.
+
+## Upload PDFs
+
+```bash
+curl -X POST localhost:8000/v1/documents -H "$KEY" -F "file=@invoice.pdf;type=application/pdf"
+curl localhost:8000/v1/documents -H "$KEY"                    # status: queued → ready
+curl localhost:8000/v1/documents/<id>/items -H "$KEY"         # line items from its tables
+curl -o original.pdf localhost:8000/v1/documents/<id>/file -H "$KEY"
+```
+
+PDFs with a text layer up to 20 MB; the same file uploaded twice is stored once. Text is split
+into passages per page and searched by meaning and by keyword; tables become line items (item,
+qty, unit, rate, amount). Answers from documents cite the file and page:
+
+```json
+{
+  "answer": "The grand total of invoice KE/26-27/8231 is INR 773,550.00 [1].",
+  "route": "documents",
+  "citations": [{"ref": 1, "filename": "invoice_KE-26-27-8231.pdf", "page": 1,
+                 "url": "/v1/documents/<id>/file#page=1"}]
+}
+```
+
+One question can use both sources ("Which orders are delayed, and what carton weight does the
+manual allow?"). Uploads need a key with the `docs` scope. Scanned PDFs without a text layer are
+not supported yet. Generate made-up sample PDFs with `python eval/datasets/make_pdfs.py out/`.
+
+Processing runs in the background of the API by default. With Docker, a separate `worker`
+service does it (`JOBS_BACKEND=arq`), and it also re-scans every database schema nightly.
 
 Try the SQL step alone from the command line:
 

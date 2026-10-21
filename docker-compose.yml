@@ -25,15 +25,33 @@ services:
     env_file:
       - path: .env
         required: false
-    environment:
+    environment: &app-env
       DATABASE_URL: postgresql://datachat:datachat@db:5432/datachat
       REDIS_URL: redis://redis:6379/0
+      JOBS_BACKEND: arq
+      MODELS_CACHE_DIR: /models
+    volumes:
+      - models:/models
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_started
+
+  # Processes uploaded PDFs, background scans and the nightly schema re-scan.
+  worker:
+    build: .
+    command: ["datachat-agent", "worker"]
+    env_file:
+      - path: .env
+        required: false
+    environment: *app-env
+    volumes:
+      - models:/models
+    depends_on:
+      api:
         condition: service_started
 
   # Development only: a sample MySQL customer database for tests.
@@ -56,3 +74,4 @@ services:
 volumes:
   pgdata:
   mysqldata:
+  models:

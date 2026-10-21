@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     embed_api_key: str = ""
     models_cache_dir: Path = Path.home() / ".cache" / "datachat-agent" / "models"
 
+    # Documents and background work. sync: process inside the upload request (tests, library use);
+    # inline: in the background of the API process; arq: a separate worker via Redis.
+    max_pdf_mb: int = 20
+    jobs_backend: Literal["sync", "inline", "arq"] = "inline"
+
     # Guards on every query against a customer database.
     sql_timeout_seconds: int = 10
     sql_max_rows: int = 500

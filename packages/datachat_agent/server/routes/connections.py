@@ -3,26 +3,24 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.concurrency import run_in_threadpool
 
-from datachat_agent.core.embeddings import get_embedder
 from datachat_agent.security import Scope, decrypt, encrypt
 from datachat_agent.server.auth import Principal, require_scope
 from datachat_agent.server.db import get_session
+from datachat_agent.server.jobs import enqueue_scan
 from datachat_agent.server.models import Connection, SchemaItem
-from datachat_agent.sql.connector import (
-    ConnectionConfigError,
-    check_read_only,
-    dispose_engine,
-    get_engine,
-    normalize_dsn,
+from datachat_agent.server.services import (
+    ScanFailed,
+    ScanRefused,
+    scan_connection,
+    test_connection,
 )
-from datachat_agent.sql.schema_scanner import scan_schema
-from datachat_agent.sql.schema_store import save_scan
+from datachat_agent.sql.connector import ConnectionConfigError, dispose_engine, normalize_dsn
 
 router = APIRouter(prefix="/connections", tags=["connections"])
 admin = require_scope(Scope.ADMIN)
@@ -78,9 +76,10 @@ class ConnectionOut(BaseModel):
 
 class ScanResult(BaseModel):
     connection: ConnectionOut
-    tables: int
-    columns: int
-    removed: int
+    tables: int = 0
+    columns: int = 0
+    removed: int = 0
+    queued: bool = False
 
 
 class SchemaColumnOut(BaseModel):
@@ -207,54 +206,40 @@ async def delete_connection(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-async def _test(conn: Connection, session: AsyncSession) -> bool:
-    engine = get_engine(decrypt(conn.dsn_encrypted))
-    result = await run_in_threadpool(check_read_only, engine, conn.dialect)
-    conn.status = "ok" if result.ok else "rejected"
-    conn.status_detail = result.detail
-    await session.commit()
-    await session.refresh(conn)
-    return result.ok
-
-
 @router.post("/{connection_id}/test", response_model=ConnectionOut)
-async def test_connection(
+async def test_connection_route(
     connection_id: uuid.UUID,
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> ConnectionOut:
     conn = await get_owned_connection(connection_id, principal, session)
-    await _test(conn, session)
+    await test_connection(session, conn)
     return ConnectionOut.of(conn)
 
 
 @router.post("/{connection_id}/scan", response_model=ScanResult)
-async def scan_connection(
+async def scan_connection_route(
     connection_id: uuid.UUID,
+    wait: bool = True,
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
-) -> ScanResult:
+):
+    """Read the schema now (default), or with `?wait=false` in the background (202)."""
     conn = await get_owned_connection(connection_id, principal, session)
-    # Re-check every time: grants can change after the first test.
-    if not await _test(conn, session):
-        raise HTTPException(status.HTTP_409_CONFLICT, conn.status_detail or "Connection rejected")
-    hidden = {
-        (i.schema_name, i.table_name, i.column_name)
-        for i in await session.scalars(
-            select(SchemaItem).where(SchemaItem.connection_id == conn.id, SchemaItem.hidden)
+    if not wait:
+        await enqueue_scan(conn.id)
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=ScanResult(connection=ConnectionOut.of(conn), queued=True).model_dump(
+                mode="json"
+            ),
         )
-    }
-    engine = get_engine(decrypt(conn.dsn_encrypted))
     try:
-        tables = await run_in_threadpool(
-            scan_schema, engine, conn.dialect, list(conn.schema_allowlist or []) or None, hidden
-        )
-    except Exception as e:  # noqa: BLE001 - report any driver error to the admin
-        conn.status, conn.status_detail = "error", f"Scan failed: {str(e).splitlines()[0]}"
-        await session.commit()
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, conn.status_detail) from None
-    counts = await save_scan(session, conn, tables, get_embedder())
-    await session.refresh(conn)
+        counts = await scan_connection(session, conn)
+    except ScanRefused as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from None
+    except ScanFailed as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from None
     return ScanResult(connection=ConnectionOut.of(conn), **counts)
 
 
