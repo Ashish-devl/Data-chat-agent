@@ -35,6 +35,8 @@ def _build(s: Settings, model: str) -> BaseChatModel:
         temperature=0,
         timeout=s.llm_timeout_seconds,
         max_retries=s.llm_max_retries,
+        stream_usage=True,
+        **({"reasoning_effort": s.llm_reasoning_effort} if s.llm_reasoning_effort else {}),
     )
 
 
@@ -46,6 +48,25 @@ def get_chat_model(settings: Settings | None = None) -> BaseChatModel | Runnable
     primary = _build(s, s.llm_model)
     fallbacks = [_build(s, m) for m in s.fallback_models]
     return primary.with_fallbacks(fallbacks) if fallbacks else primary
+
+
+class StreamUsage:
+    """Token count for a streamed reply.
+
+    OpenAI-compatible providers report a running total (Gemini on every chunk, OpenAI on the
+    last one), so the last total is the answer. Anthropic reports input and output in separate
+    chunks, so those are added up.
+    """
+
+    def __init__(self, provider: str) -> None:
+        self._add = provider == "anthropic"
+        self.total = 0
+
+    def update(self, usage: dict | None) -> None:
+        if not usage:
+            return
+        value = int(usage.get("total_tokens", 0))
+        self.total = self.total + value if self._add else max(self.total, value)
 
 
 def describe_llm_error(e: Exception) -> str:

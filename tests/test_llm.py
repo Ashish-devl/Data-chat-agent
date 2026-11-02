@@ -74,3 +74,21 @@ def test_error_messages(message, expected):
 def test_error_message_never_contains_the_key():
     key = "AQ.secret-key-value"
     assert key not in describe_llm_error(RuntimeError(f"401 bad key {key}"))
+
+
+def test_stream_usage_takes_running_total_for_openai_style():
+    from datachat_agent.core.llm import StreamUsage
+
+    u = StreamUsage("openai_compatible")
+    for total in (407, 431, 433, 433, None):
+        u.update({"total_tokens": total} if total else None)
+    assert u.total == 433
+
+
+def test_stream_usage_adds_parts_for_anthropic():
+    from datachat_agent.core.llm import StreamUsage
+
+    u = StreamUsage("anthropic")
+    u.update({"total_tokens": 120})  # input, reported at the start
+    u.update({"total_tokens": 35})  # output, reported at the end
+    assert u.total == 155

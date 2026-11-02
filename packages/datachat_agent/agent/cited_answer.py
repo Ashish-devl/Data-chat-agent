@@ -2,15 +2,12 @@
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
-from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_core.runnables import Runnable
 
-from datachat_agent.agent.answer import ROWS_FOR_MODEL, Composed
-from datachat_agent.core.llm import describe_llm_error
+from datachat_agent.agent.answer import ROWS_FOR_MODEL, selection_note
 from datachat_agent.docs.search import ItemRow, Passage
 
 MAX_ITEMS_FOR_MODEL = 80
@@ -56,11 +53,6 @@ class Source:
             "chunk_id": self.chunk_id,
             "url": f"/v1/documents/{self.document_id}/file#page={self.page}",
         }
-
-
-@dataclass
-class CitedComposed(Composed):
-    citations: list[dict[str, Any]] = field(default_factory=list)
 
 
 def number_sources(
@@ -133,11 +125,15 @@ def build_cited_messages(
     payload: dict[str, Any] = {}
     if table is not None:
         payload["database_result"] = {
+            "query": table.get("sql"),
             "columns": table["columns"],
             "rows": table["rows"][:ROWS_FOR_MODEL],
             "rows_returned": table["row_count"],
             "cut_off": table["truncated"] or table["row_count"] > ROWS_FOR_MODEL,
         }
+        note = selection_note(table.get("sql"), table["row_count"])
+        if note:
+            payload["database_result"]["note"] = note
     payload["document_passages"] = passages
     payload["document_line_items"] = items
     if len(items) >= MAX_ITEMS_FOR_MODEL:
@@ -158,38 +154,3 @@ def cited_refs(text: str, sources: list[Source]) -> list[Source]:
         if src and src not in seen:
             seen.append(src)
     return seen
-
-
-async def compose_cited_answer(
-    llm: BaseChatModel | Runnable,
-    question: str,
-    passages: list[Passage],
-    items: list[ItemRow],
-    table: dict[str, Any] | None = None,
-    history: list[tuple[str, str]] | None = None,
-) -> CitedComposed:
-    sources, passage_payload, item_payload = number_sources(passages, items)
-    messages = build_cited_messages(question, passage_payload, item_payload, table, history)
-    try:
-        response = await llm.ainvoke(messages)
-    except Exception as e:  # noqa: BLE001 - still show where the answer can be found
-        top = sources[:3]
-        names = "; ".join(f"{s.filename} page {s.page}" for s in top)
-        text = (
-            f"The most relevant places are: {names}. ({describe_llm_error(e)})"
-            if top
-            else describe_llm_error(e)
-        )
-        return CitedComposed(text, fallback=True, citations=[s.as_citation() for s in top])
-
-    content = response.content if isinstance(response.content, str) else str(response.content)
-    usage = getattr(response, "usage_metadata", None) or {}
-    text = content.strip()
-    if text.lower().startswith("i don't know"):
-        return CitedComposed(text, tokens=int(usage.get("total_tokens", 0)), citations=[])
-    used = cited_refs(text, sources)
-    if not used and (passages or items) and table is None:
-        used = sources[:1]  # an answer from documents always points somewhere
-    return CitedComposed(
-        text, tokens=int(usage.get("total_tokens", 0)), citations=[s.as_citation() for s in used]
-    )

@@ -15,6 +15,9 @@ os.environ.update(
         "EMBED_PROVIDER": "hash",  # no model download in tests
         "JOBS_BACKEND": "sync",  # uploads are processed before the response returns
         "LLM_FALLBACK_MODELS": "",
+        "DEFAULT_RATE_LIMIT_PER_MINUTE": "100000",  # tests set lower limits explicitly
+        "MASK_PII": "false",
+        "LLM_REASONING_EFFORT": "",
     }
 )
 

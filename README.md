@@ -2,7 +2,7 @@
 
 An open-source AI agent that answers plain-English questions from your SQL database and your PDFs, and shows the SQL or page each answer came from.
 
-> Status: early development (v0.1, week 4 of 8). Not ready for production use.
+> Status: early development (v0.1, week 5 of 8). Not ready for production use.
 
 ## Bring your own model key
 
@@ -93,6 +93,35 @@ Send the same `session_id` for follow-ups ("which buyers are those for?"); read 
 with `GET /v1/sessions/chat-1`. Pass `connection_id` when you have more than one database, and
 `user_context` (e.g. `{"user_company": 7}`) when the connection uses row filters. Keys need the
 `ask` scope.
+
+### Streaming
+
+`POST /v1/ask/stream` takes the same body and answers as Server-Sent Events, so a chat window can
+show the answer while it is being written:
+
+```text
+event: meta    data: {"session_id": "chat-1", "route": "database"}
+event: data    data: {"sql": "SELECT ...", "rows": [...], "row_count": 13}
+event: token   data: {"text": "There are 13 "}
+event: token   data: {"text": "delayed orders ..."}
+event: done    data: { ...the same body /v1/ask returns... }
+```
+
+### Feedback
+
+```bash
+curl -X POST localhost:8000/v1/feedback -H "$KEY" -H "Content-Type: application/json"   -d '{"query_id": "<from the answer>", "rating": "wrong", "comment": "Should include line 7"}'
+```
+
+### Limits and privacy
+
+- Each API key may make `DEFAULT_RATE_LIMIT_PER_MINUTE` requests a minute (60 by default; 429 with
+  `Retry-After` beyond that). Use `RATE_LIMIT_BACKEND=redis` when several servers share the load.
+- `DEFAULT_MONTHLY_TOKEN_LIMIT` caps model tokens per account per month. Operators set per-account
+  limits with `datachat-agent set-limits <tenant id> --per-minute 30 --monthly-tokens 500000` and
+  see them with `datachat-agent list-tenants`. `GET /v1/usage` shows an account its own use.
+- `MASK_PII=true` replaces emails, phone numbers, card, Aadhaar and PAN numbers with placeholders
+  before anything reaches the model; the real values are put back into the answer.
 
 ## Upload PDFs
 

@@ -11,6 +11,7 @@ from datachat_agent.server.routes import (
     ask,
     connections,
     documents,
+    feedback,
     health,
     keys,
     knowledge,
@@ -28,6 +29,7 @@ router.include_router(schema_items.router)
 router.include_router(knowledge.router)
 router.include_router(documents.router)
 router.include_router(ask.router)
+router.include_router(feedback.router)
 
 
 @asynccontextmanager

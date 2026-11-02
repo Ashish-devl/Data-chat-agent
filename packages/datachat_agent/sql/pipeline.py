@@ -15,6 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from datachat_agent.config import get_settings
 from datachat_agent.core.embeddings import Embedder
 from datachat_agent.core.llm import LLMUnavailableError
+from datachat_agent.core.pii import PiiMasker
 from datachat_agent.security import decrypt
 from datachat_agent.server.models import Connection
 from datachat_agent.sql.connector import get_engine
@@ -51,6 +52,7 @@ async def answer_with_sql(
     max_attempts: int = 2,
     retrieval_text: str | None = None,
     partial: bool = False,
+    masker: PiiMasker | None = None,
 ) -> SQLAnswer:
     """`retrieval_text` (default: the question) is what finds the tables, e.g. the question plus
     the previous one for follow-ups, or plus matching business-term definitions."""
@@ -66,7 +68,9 @@ async def answer_with_sql(
 
     req = SQLRequest(
         question=question,
-        schema_text=render_schema(tables),
+        schema_text=PiiMasker().mask_text(render_schema(tables))
+        if masker
+        else render_schema(tables),
         dialect=connection.dialect,
         business_terms=business_terms or [],
         examples=examples or [],

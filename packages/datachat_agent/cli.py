@@ -72,6 +72,65 @@ def create_tenant(name: str) -> None:
     typer.echo(f"Tenant '{name}' created.\nAdmin API key (shown once, store it now):\n{key}")
 
 
+@app.command("list-tenants")
+def list_tenants() -> None:
+    """Show every tenant with its limits and this month's token use."""
+
+    async def _run():
+        from sqlalchemy import select
+
+        from datachat_agent.server.db import get_sessionmaker
+        from datachat_agent.server.limits import tokens_this_month
+        from datachat_agent.server.models import Tenant
+
+        async with get_sessionmaker()() as session:
+            tenants = list(await session.scalars(select(Tenant).order_by(Tenant.created_at)))
+            return [(t, await tokens_this_month(session, t.id)) for t in tenants]
+
+    from datachat_agent.config import get_settings
+
+    s = get_settings()
+    for t, used in asyncio.run(_run()):
+        rpm = t.rate_limit_per_minute or f"{s.default_rate_limit_per_minute} (default)"
+        cap = (
+            t.monthly_token_limit
+            if t.monthly_token_limit is not None
+            else (f"{s.default_monthly_token_limit or 'none'} (default)")
+        )
+        typer.echo(f"{t.id}  {t.name}  rpm={rpm}  monthly_tokens={cap}  used={used:,}")
+
+
+@app.command("set-limits")
+def set_limits(
+    tenant_id: str,
+    per_minute: int | None = typer.Option(None, help="Requests per minute per API key"),
+    monthly_tokens: int | None = typer.Option(None, help="Model tokens per calendar month"),
+    use_defaults: bool = typer.Option(False, help="Clear both limits and use server defaults"),
+) -> None:
+    """Set a tenant's limits (an operator task; tenants cannot raise their own)."""
+    import uuid
+
+    async def _run():
+        from datachat_agent.server.db import get_sessionmaker
+        from datachat_agent.server.models import Tenant
+
+        async with get_sessionmaker()() as session:
+            tenant = await session.get(Tenant, uuid.UUID(tenant_id))
+            if tenant is None:
+                raise typer.BadParameter("No tenant with that id.")
+            if use_defaults:
+                tenant.rate_limit_per_minute = tenant.monthly_token_limit = None
+            if per_minute is not None:
+                tenant.rate_limit_per_minute = per_minute
+            if monthly_tokens is not None:
+                tenant.monthly_token_limit = monthly_tokens
+            await session.commit()
+            return tenant.name, tenant.rate_limit_per_minute, tenant.monthly_token_limit
+
+    name, rpm, cap = asyncio.run(_run())
+    typer.echo(f"{name}: rpm={rpm or 'default'} monthly_tokens={cap or 'default'}")
+
+
 @app.command("gen-secret")
 def gen_secret() -> None:
     """Print a new SECRET_KEY for .env."""

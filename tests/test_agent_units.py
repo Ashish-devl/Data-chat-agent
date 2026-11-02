@@ -137,3 +137,51 @@ def test_partial_sql_rule_only_for_mixed_questions():
     base = dict(question="q", schema_text="TABLE public.t (id int)", dialect="postgresql")
     assert "(searched separately)" not in build_messages(SQLRequest(**base))[0].content
     assert "(searched separately)" in build_messages(SQLRequest(**base, partial=True))[0].content
+
+
+def test_answer_step_sees_the_query():
+    msgs = build_answer_messages(
+        "Top 5?", ["n"], [{"n": 1}], 1, False, sql="SELECT n FROM t ORDER BY n LIMIT 5"
+    )
+    assert '"query": "SELECT n FROM t ORDER BY n LIMIT 5"' in msgs[-1].content
+    assert "do not call their count a total" in msgs[0].content
+
+
+@pytest.mark.parametrize(
+    ("sql", "rows", "has_note"),
+    [
+        ("SELECT a FROM t ORDER BY a DESC LIMIT 5", 5, True),
+        ("SELECT a FROM t LIMIT 5 OFFSET 10", 5, True),
+        ("SELECT a FROM t LIMIT 5", 3, False),  # fewer rows than asked: this is everything
+        ("SELECT a FROM t LIMIT 500", 500, False),  # our own safety cap, not the user's choice
+        ("SELECT COUNT(*) FROM t", 1, False),
+        (None, 5, False),
+    ],
+)
+def test_selection_note(sql, rows, has_note):
+    from datachat_agent.agent.answer import selection_note
+
+    assert (selection_note(sql, rows) is not None) is has_note
+
+
+def test_selection_note_reaches_the_model():
+    msgs = build_answer_messages(
+        "Top 5?",
+        ["n"],
+        [{"n": i} for i in range(5)],
+        5,
+        False,
+        sql="SELECT n FROM t ORDER BY n DESC LIMIT 5",
+    )
+    assert "this count is not a total" in msgs[-1].content
+
+
+def test_reasoning_effort_is_passed_only_when_set(monkeypatch):
+    from datachat_agent.config import get_settings
+    from datachat_agent.core.llm import get_chat_model
+
+    get_settings.cache_clear()
+    assert get_chat_model().reasoning_effort is None
+    monkeypatch.setenv("LLM_REASONING_EFFORT", "low")
+    get_settings.cache_clear()
+    assert get_chat_model().reasoning_effort == "low"

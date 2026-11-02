@@ -12,13 +12,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
-from datachat_agent.agent.answer import I_DONT_KNOW, chart_hint, compose_answer
-from datachat_agent.agent.cited_answer import compose_cited_answer
+from datachat_agent.agent.answer_plan import plan_answer, run_plan
 from datachat_agent.agent.doc_planner import plan_items
 from datachat_agent.agent.knowledge import Knowledge, load_knowledge
 from datachat_agent.agent.router import Route, choose_route
 from datachat_agent.agent.sessions import Turn
 from datachat_agent.core.embeddings import Embedder
+from datachat_agent.core.pii import PiiMasker
 from datachat_agent.docs.search import ItemRow, Passage, find_items, search_passages
 from datachat_agent.server.models import Connection, Document, SchemaItem
 from datachat_agent.sql.pipeline import SQLAnswer, answer_with_sql
@@ -33,6 +33,7 @@ class AgentDeps:
     connection: Connection | None
     user_context: dict[str, Any] = field(default_factory=dict)
     history: list[Turn] = field(default_factory=list)
+    masker: PiiMasker | None = None
 
 
 class AgentState(TypedDict, total=False):
@@ -121,6 +122,7 @@ async def database_node(state: AgentState, config: RunnableConfig) -> AgentState
         history=[(t.question, t.sql) for t in deps.history if t.sql],
         retrieval_text=retrieval_text,
         partial=state.get("route") == "both",
+        masker=deps.masker,
     )
     return {
         "sql": result,
@@ -153,78 +155,21 @@ async def documents_node(state: AgentState, config: RunnableConfig) -> AgentStat
     }
 
 
-def _table(sql: SQLAnswer | None) -> dict[str, Any] | None:
-    if sql is None or sql.result is None:
-        return None
-    r = sql.result
-    return {
-        "columns": r.columns,
-        "rows": r.rows,
-        "row_count": r.row_count,
-        "truncated": r.truncated,
-    }
+def history_answers(deps: AgentDeps) -> list[tuple[str, str]]:
+    return [(t.question, t.answer) for t in deps.history if t.answer]
 
 
 async def answer_node(state: AgentState, config: RunnableConfig) -> AgentState:
     deps = _deps(config)
-    sql: SQLAnswer | None = state.get("sql")
-    passages = state.get("documents") or []
-    items = state.get("items") or []
-    tokens = state.get("tokens", 0)
-    history = [(t.question, t.answer) for t in deps.history if t.answer]
+    plan = plan_answer(state, history_answers(deps), deps.masker)
+    update = await run_plan(plan, deps.llm, deps.masker)
+    tokens = state.get("tokens", 0) + update.pop("tokens_used", 0)
+    update.pop("fallback", None)
+    return {**update, "tokens": tokens}
 
-    if state["route"] == "none":
-        return {
-            "answer": "No data source is connected yet, so I can't answer that.",
-            "chart": None,
-            "error": None,
-        }
-    if state.get("llm_unavailable"):
-        return {
-            "answer": sql.error if sql else "The language model is unavailable.",
-            "chart": None,
-            "error": sql.error if sql else None,
-        }
 
-    table = _table(sql)
-    if passages or items:
-        composed = await compose_cited_answer(
-            deps.llm, state["question"], passages, items, table, history
-        )
-        dont_know = composed.text.lower().startswith("i don't know")
-        chart = chart_hint(table["columns"], table["rows"]) if table and not dont_know else None
-        return {
-            "answer": composed.text,
-            "citations": composed.citations,
-            "chart": chart,
-            "tokens": tokens + composed.tokens,
-            "error": None,
-        }
-
-    if table is not None:
-        composed = await compose_answer(
-            deps.llm,
-            state["question"],
-            table["columns"],
-            table["rows"],
-            table["row_count"],
-            table["truncated"],
-            history,
-        )
-        return {
-            "answer": composed.text,
-            "chart": chart_hint(table["columns"], table["rows"]),
-            "tokens": tokens + composed.tokens,
-            "error": None,
-        }
-
-    if sql is not None and sql.error and not sql.cannot_answer:
-        return {
-            "answer": "I couldn't get that data: " + sql.error,
-            "chart": None,
-            "error": sql.error,
-        }
-    return {"answer": I_DONT_KNOW, "chart": None, "error": None}
+async def _no_answer(state: AgentState, config: RunnableConfig) -> AgentState:
+    return {}
 
 
 def _after_route(state: AgentState) -> str:
@@ -237,12 +182,13 @@ def _after_database(state: AgentState) -> str:
     return "documents" if state["route"] == "both" else "answer"
 
 
-def build_graph():
+def build_graph(with_answer: bool = True):
+    """with_answer=False stops after gathering data, for the streaming endpoint."""
     g = StateGraph(AgentState)
     g.add_node("route", route_node)
     g.add_node("database", database_node)
     g.add_node("documents", documents_node)
-    g.add_node("answer", answer_node)
+    g.add_node("answer", answer_node if with_answer else _no_answer)
     g.add_edge(START, "route")
     g.add_conditional_edges("route", _after_route, ["database", "documents", "answer"])
     g.add_conditional_edges("database", _after_database, ["documents", "answer"])
@@ -252,6 +198,14 @@ def build_graph():
 
 
 _GRAPH = build_graph()
+_GATHER = build_graph(with_answer=False)
+
+
+async def gather(question: str, deps: AgentDeps) -> AgentState:
+    """Route and fetch data, without writing the answer (the caller streams it)."""
+    return await _GATHER.ainvoke(
+        {"question": question, "tokens": 0}, config={"configurable": {"deps": deps}}
+    )
 
 
 async def run_agent(question: str, deps: AgentDeps) -> AgentResult:

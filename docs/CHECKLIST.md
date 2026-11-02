@@ -71,12 +71,16 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 
 ## Week 5 — Both sources
 - [x] B1 One question answered from database + PDFs together (router → SQL for the database part → document search → one cited answer; checked with a real model)
-- [ ] B2 `POST /v1/ask/stream` (Server-Sent Events)
-- [ ] B3 `POST /v1/feedback` (helpful / wrong) stored on `query_log`
+- [x] B2 `POST /v1/ask/stream` (Server-Sent Events): `meta` → `data` (SQL + rows) → `token`… → `done` (same body as `/ask`); shares the answer step with `/ask` so both always agree; checked live with Gemini (it streams in a few large chunks)
+- [x] B3 `POST /v1/feedback` (helpful / wrong + optional comment), stored on `query_log` with time; can be changed; tenant-isolated
 - [x] B4 Chart hint (bar, line, none), pulled forward to week 3
-- [ ] B5 Rate limits: requests per minute per key (Redis) + monthly token cap per tenant
-- [ ] B6 Gap: limit columns on `tenants` (rpm, monthly tokens)
-- [ ] B7 Optional PII masking before data is sent to the LLM (`MASK_PII=true`)
+- [x] B5 Rate limits: requests per minute per API key (memory or Redis, 429 + Retry-After) on every authenticated route; monthly token cap per tenant checked before `/ask` and `/ask/stream`; `GET /v1/usage` shows limits and tokens left
+- [x] B6 `tenants.rate_limit_per_minute` and `monthly_token_limit` (migration 0004), server defaults in `.env`; operators set them with `datachat-agent set-limits` and see them with `list-tenants`
+- [x] B7 PII masking (`MASK_PII=true`): emails, phone numbers, Luhn-valid card numbers, Aadhaar and PAN become placeholders in rows, passages, line items, history and schema samples; real values restored in the answer, also when streamed
+
+- [x] B8 Token counting fixed for streamed replies (Gemini repeats the running total on every chunk)
+- [x] B9 `LLM_REASONING_EFFORT` setting for thinking models (faster, fewer tokens); **still to measure on Gemini once the daily quota resets**
+- [x] B10 Answers no longer call a "top N" selection a total: the query's own LIMIT is stated as a fact in the data
 
 ## Week 6 — Distribution
 - [ ] D1 Python library: `DataChat` class (`client.py`): `scan_schema()`, `add_pdf()`, `ask()`
@@ -98,7 +102,7 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [ ] E5 Targets: SQL accuracy 80%, schema recall 95%, document accuracy 85%, citation precision 90%, refusal 90%, median latency < 4 s (note: free Gemini took 3–21 s per question on 2026-10-21; the < 4 s target needs a faster model or the paid tier)
 - [x] E6 Executor tests: timeout fires, LIMIT applied, row filter applied, write fails on a read-only user and inside the read-only transaction even for a writer
 - [x] E7 Tenancy tests: keys, connections (every route), schema items, terms, examples, sessions and documents (every route); same file or session key in two tenants stays separate
-- [ ] E8 Auth tests: revoked key, wrong scope, publishable key limits
+- [~] E8 Auth tests: revoked key (every route), wrong scope (ask, docs, admin) done; publishable key limits in week 6
 - [ ] E9 Feedback → evaluation set export
 
 ## Week 8 — Launch (checkpoint: evaluation targets met)

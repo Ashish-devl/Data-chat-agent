@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     llm_max_retries: int = 1
     # Comma-separated models to try, in order, when LLM_MODEL fails (same provider and key).
     llm_fallback_models: str = ""
+    # Thinking models (Gemini 3, OpenAI o-series) spend time and tokens reasoning first.
+    # e.g. "low" or "none" makes them faster and cheaper; empty = the provider's default.
+    llm_reasoning_effort: str = ""
 
     # "local" runs on CPU with no key; "hash" is a tiny fake for tests only.
     embed_provider: Literal["local", "openai_compatible", "hash"] = "local"
@@ -38,6 +41,15 @@ class Settings(BaseSettings):
     # inline: in the background of the API process; arq: a separate worker via Redis.
     max_pdf_mb: int = 20
     jobs_backend: Literal["sync", "inline", "arq"] = "inline"
+
+    # Abuse and cost limits. memory: per process (one server); redis: shared by all servers.
+    rate_limit_backend: Literal["memory", "redis", "off"] = "memory"
+    default_rate_limit_per_minute: int = 60
+    default_monthly_token_limit: int | None = None  # None = no cap
+
+    # Replace emails, phone numbers, card and ID numbers with placeholders before data reaches
+    # the model; the real values are put back into the answer.
+    mask_pii: bool = False
 
     # Guards on every query against a customer database.
     sql_timeout_seconds: int = 10

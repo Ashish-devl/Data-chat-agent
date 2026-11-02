@@ -56,6 +56,9 @@ class Tenant(Base):
     # Hosted mode: each tenant brings its own LLM key, encrypted with Fernet.
     llm_provider: Mapped[str | None] = mapped_column(String(50))
     llm_key_encrypted: Mapped[str | None] = mapped_column(Text)
+    # NULL = use the server defaults (DEFAULT_RATE_LIMIT_PER_MINUTE, DEFAULT_MONTHLY_TOKEN_LIMIT).
+    rate_limit_per_minute: Mapped[int | None] = mapped_column(Integer)
+    monthly_token_limit: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = _created_at()
 
 
@@ -261,6 +264,8 @@ class QueryLog(Base):
     latency_ms: Mapped[int | None] = mapped_column(Integer)
     tokens: Mapped[int] = mapped_column(Integer, default=0)
     feedback: Mapped[str | None] = mapped_column(String(20))  # helpful|wrong
+    feedback_comment: Mapped[str | None] = mapped_column(Text)
+    feedback_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _created_at()
 
