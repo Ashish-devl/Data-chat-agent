@@ -38,6 +38,9 @@ jobs:
 
   npm:
     needs: verify
+    # Off until npm is set up: Settings -> Secrets and variables -> Actions -> Variables ->
+    # PUBLISH_NPM = true (see docs/RELEASING.md).
+    if: vars.PUBLISH_NPM == 'true'
     runs-on: ubuntu-latest
     environment: npm
     permissions:
@@ -85,6 +88,10 @@ jobs:
 
   github-release:
     needs: [pypi, npm, docker]
+    # A skipped npm job (not set up yet) must not block the release; a failed one does.
+    if: >-
+      !cancelled() && needs.pypi.result == 'success' && needs.docker.result == 'success'
+      && needs.npm.result != 'failure'
     runs-on: ubuntu-latest
     permissions:
       contents: write

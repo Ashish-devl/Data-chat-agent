@@ -22,7 +22,8 @@ token is stored in the repository.
    - Workflow: `release.yml` · Environment: `pypi`
 
 **npm**
-1. Sign in at https://www.npmjs.com (two-factor authentication on).
+1. Sign in at https://www.npmjs.com (two-factor authentication on; an authenticator app on
+   your phone works, no hardware key needed).
 2. npm only lets you set up trusted publishing on a package that exists, so the first
    version is published by hand from your computer:
    ```bash
@@ -31,6 +32,10 @@ token is stored in the repository.
 3. On npmjs.com → the `datachat-agent` package → Settings → Trusted publisher → GitHub Actions:
    - Organization or user: `Ashish-devl` · Repository: `Data-chat-agent`
    - Workflow: `release.yml` · Environment: `npm`
+
+4. Turn npm publishing on: GitHub repo → Settings → Secrets and variables → Actions →
+   Variables → New repository variable `PUBLISH_NPM` = `true`. Until then the release skips
+   npm and publishes everything else.
 
 **GitHub**: Settings → Environments → create `pypi` and `npm` (add yourself as a required
 reviewer if you want to approve each release). The Docker image needs no setup.

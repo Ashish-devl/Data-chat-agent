@@ -2,7 +2,7 @@
 
 An open-source AI agent that answers plain-English questions from your SQL database and your PDFs, and shows the SQL or page each answer came from.
 
-> Status: early development (v0.1, week 6 of 8). Not ready for production use.
+> Status: preview release 0.1.0 (week 6 of 8 toward v1.0). Not ready for production use yet.
 
 ## Bring your own model key
 
