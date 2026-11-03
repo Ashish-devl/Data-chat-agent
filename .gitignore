@@ -28,3 +28,6 @@ Thumbs.db
 # Local data
 *.sqlite3
 uploads/
+
+# Evaluation output (committed only for published runs)
+eval/results/answers.json
