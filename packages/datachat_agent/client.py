@@ -40,6 +40,7 @@ class Answer:
     tokens: int = 0
     latency_ms: int = 0
     error: str | None = None
+    tables_considered: list[str] = field(default_factory=list)  # tables shown to the model
 
     def __str__(self) -> str:
         return self.answer
@@ -394,6 +395,7 @@ class DataChat:
             tokens=result.tokens,
             latency_ms=int((time.perf_counter() - started) * 1000),
             error=result.error,
+            tables_considered=result.sql.tables_considered if result.sql else [],
         )
 
     # --- lifecycle ----------------------------------------------------------------------

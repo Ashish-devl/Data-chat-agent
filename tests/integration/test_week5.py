@@ -339,3 +339,43 @@ def test_revoked_key_stops_working_everywhere(client, admin):
         kwargs = {"json": {"question": "q"}} if method == "post" else {}
         assert getattr(client, method)(path, headers=headers, **kwargs).status_code == 401
     assert client.get("/v1/health").status_code == 200
+
+
+def test_feedback_export_for_the_evaluation_set(client, admin, use_llm):
+    from datachat_agent.agent.service import export_feedback
+    from datachat_agent.server.db import get_sessionmaker
+
+    conn = scanned_connection(client, admin, PG_READONLY)
+    ids = []
+    for _ in range(2):
+        use_llm(COUNT_BUYERS, "Six.")
+        ids.append(
+            client.post(
+                "/v1/ask",
+                headers=admin,
+                json={"question": "How many buyers?", "connection_id": conn["id"]},
+            ).json()["query_id"]
+        )
+    client.post(
+        "/v1/feedback",
+        headers=admin,
+        json={"query_id": ids[0], "rating": "wrong", "comment": "Should be 7"},
+    )
+    client.post("/v1/feedback", headers=admin, json={"query_id": ids[1], "rating": "helpful"})
+    tenant_id = tenant_of(client, admin)
+
+    async def _export(rating):
+        async with get_sessionmaker()() as s:
+            return await export_feedback(s, tenant_id, rating)
+
+    wrong = client.portal.call(_export, "wrong")
+    assert len(wrong) == 1 and wrong[0]["comment"] == "Should be 7"
+    assert wrong[0]["sql_used"].startswith("SELECT COUNT(*)") and wrong[0]["kind"] == "review"
+    assert len(client.portal.call(_export, None)) == 2
+    other = tenant_of(client, make_tenant(client))
+
+    async def _other():
+        async with get_sessionmaker()() as s:
+            return await export_feedback(s, other, None)
+
+    assert client.portal.call(_other) == []

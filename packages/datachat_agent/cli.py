@@ -98,6 +98,34 @@ def ingest(tenant_id: str, files: list[str]) -> None:
         typer.echo(f"{name}: {status} {detail}".rstrip())
 
 
+@app.command("export-feedback")
+def export_feedback_cmd(
+    tenant_id: str,
+    rating: str = typer.Option("wrong", help="wrong, helpful or all"),
+    out: str | None = typer.Option(None, help="Write to this file instead of the screen"),
+) -> None:
+    """Rated answers as candidate evaluation questions (JSON)."""
+    import json
+    import uuid
+    from pathlib import Path
+
+    async def _run():
+        from datachat_agent.agent.service import export_feedback
+        from datachat_agent.server.db import get_sessionmaker
+
+        async with get_sessionmaker()() as session:
+            return await export_feedback(
+                session, uuid.UUID(tenant_id), None if rating == "all" else rating
+            )
+
+    text = json.dumps(asyncio.run(_run()), indent=2, ensure_ascii=False)
+    if out:
+        Path(out).write_text(text, encoding="utf-8")
+        typer.echo(f"Wrote {out}")
+    else:
+        typer.echo(text)
+
+
 @app.command("init-db")
 def init_db() -> None:
     """Create or upgrade all tables (runs database migrations)."""

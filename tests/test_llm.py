@@ -92,3 +92,13 @@ def test_stream_usage_adds_parts_for_anthropic():
     u.update({"total_tokens": 120})  # input, reported at the start
     u.update({"total_tokens": 35})  # output, reported at the end
     assert u.total == 155
+
+
+def test_backup_models_do_not_get_reasoning_effort(monkeypatch):
+    monkeypatch.setenv("LLM_MODEL", "main")
+    monkeypatch.setenv("LLM_FALLBACK_MODELS", "backup")
+    monkeypatch.setenv("LLM_REASONING_EFFORT", "none")
+    get_settings.cache_clear()
+    chain = get_chat_model()
+    assert chain.runnable.reasoning_effort == "none"
+    assert chain.fallbacks[0].reasoning_effort is None

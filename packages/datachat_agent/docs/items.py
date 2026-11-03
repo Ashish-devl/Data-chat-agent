@@ -42,7 +42,12 @@ SYNONYMS: dict[str, tuple[str, ...]] = {
     ),
 }
 SERIAL = ("sno", "slno", "sr", "srno", "no", "#", "s", "serial")
-TOTAL_ROW = re.compile(r"\b(grand\s*total|sub\s*total|total|net\s*payable|round\s*off)\b", re.I)
+# Rows below the items that are not goods: totals, taxes, charges and adjustments.
+TOTAL_ROW = re.compile(
+    r"\b(grand\s*total|sub\s*total|total|net\s*payable|round(ed)?\s*off|[csi]?gst|vat|tax|"
+    r"cess|tds|discount|freight|less|add)\b",
+    re.I,
+)
 MAX_LLM_TABLES = 3
 
 
@@ -59,7 +64,8 @@ class LineItem:
 
 
 def _norm(header: str) -> str:
-    return re.sub(r"[^a-z#]", "", header.lower())
+    """'Unit Price (USD)' -> 'unitprice': units in brackets do not decide what a column is."""
+    return re.sub(r"[^a-z#]", "", re.sub(r"[(\[].*?[)\]]", "", header.lower()))
 
 
 def parse_number(text: str | None) -> Decimal | None:
@@ -84,12 +90,18 @@ def map_header(header: list[str]) -> dict[int, str] | None:
     mapping: dict[int, str] = {}
     for i, cell in enumerate(header):
         key = _norm(cell)
-        for name, words in SYNONYMS.items():
-            if name not in mapping.values() and (
-                key in words or any(key.startswith(w) for w in words if len(w) > 3)
-            ):
-                mapping[i] = name
-                break
+        free = [f for f in SYNONYMS if f not in mapping.values()]
+        # An exact synonym wins; otherwise the longest synonym the header starts with,
+        # so "unitprice..." is a rate, not a unit.
+        exact = next((f for f in free if key in SYNONYMS[f]), None)
+        if exact:
+            mapping[i] = exact
+            continue
+        prefixes = [
+            (len(w), f) for f in free for w in SYNONYMS[f] if len(w) > 3 and key.startswith(w)
+        ]
+        if prefixes:
+            mapping[i] = max(prefixes)[1]
     has_number = any(f in mapping.values() for f in ("qty", "rate", "amount"))
     return mapping if "item" in mapping.values() and has_number else None
 

@@ -95,15 +95,18 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [x] D10 Docker image on GitHub Container Registry: **`ghcr.io/ashish-devl/datachat-agent:0.1.0` published**, pulls without logging in
 
 ## Week 7 — Evaluation, security, tests
-- [~] E1 Sample databases: 8-table garment mini-ERP done for Postgres and MySQL with read-only and writer users (`eval/datasets/erp_demo.py`); Chinook or Northwind still to add
-- [~] E2 Sample PDFs (made-up): 4 invoices with different table headers, a 2-page buyer manual, a price list, an image-only scan (`eval/datasets/make_pdfs.py`); 13 more to reach 20
-- [ ] E3 100 questions with expected answers: 60 database, 30 documents, 10 both
-- [ ] E4 `eval/run_eval.py` reporting all six metrics; score in the README
+- [x] E1 Sample databases: garment mini-ERP (Postgres + MySQL, made up) and Chinook (public, MIT, 11 tables; pinned v1.4.5 download checked by SHA-256, `eval/datasets/chinook.py`)
+- [x] E2 20 sample PDFs (made up): 9 invoices (incl. a 2-page table, GST rows, a USD export invoice), 2 buyer manuals, a supply contract, a PO, a packing list, a test report, a credit note, a delivery challan, 2 price lists, an image-only scan
+- [x] E3 100 questions (`eval/datasets/questions.json`): 60 database (40 ERP + 20 Chinook), 30 documents, 10 both; 7 of them unanswerable. Every correct query checked to return rows with no tie for first place
+- [~] E4 `python -m eval.run_eval`: loads data, asks all 100 through the real model, grades, saves after each question, stops cleanly on a spent daily quota and continues with `--resume`; scoring unit-tested. **Full run waiting for Gemini's daily quota**
 - [ ] E5 Targets: SQL accuracy 80%, schema recall 95%, document accuracy 85%, citation precision 90%, refusal 90%, median latency < 4 s (note: free Gemini took 3–21 s per question on 2026-10-21; the < 4 s target needs a faster model or the paid tier)
 - [x] E6 Executor tests: timeout fires, LIMIT applied, row filter applied, write fails on a read-only user and inside the read-only transaction even for a writer
 - [x] E7 Tenancy tests: keys, connections (every route), schema items, terms, examples, sessions and documents (every route); same file or session key in two tenants stays separate
 - [x] E8 Auth tests: revoked key (every route), wrong scope, publishable key limits (website check, ask-only, no user_context, private sessions, own feedback only), MCP key checks
-- [ ] E9 Feedback → evaluation set export
+- [x] E9 Feedback → evaluation set: `datachat-agent export-feedback TENANT_ID [--rating wrong|helpful|all]` writes candidate questions with the SQL and answer given
+
+- [x] E10 PDF line items: units in brackets no longer confuse columns ("Unit Price (USD)" is a rate); tax, discount and freight rows are skipped (found by the new sample PDFs)
+- [x] E11 Backup models no longer get `LLM_REASONING_EFFORT` (Gemini 3.5 Flash Lite rejects it)
 
 ## Week 8 — Launch (checkpoint: evaluation targets met)
 - [ ] L1 Admin console (React + Vite): connections, documents, semantic layer, keys, users, query log, usage

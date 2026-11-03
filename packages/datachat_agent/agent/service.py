@@ -59,3 +59,35 @@ async def answer_and_log(
     session.add(log)
     await session.commit()
     return result, chat, log
+
+
+async def export_feedback(
+    session: AsyncSession, tenant_id: uuid.UUID, rating: str | None = "wrong"
+) -> list[dict[str, Any]]:
+    """Rated answers as candidate evaluation questions (newest first).
+
+    A reviewer adds the correct `sql` or `expect` and moves the entry into
+    eval/datasets/questions.json; "wrong" answers are the most useful ones to add.
+    """
+    from sqlalchemy import select
+
+    q = select(QueryLog).where(QueryLog.tenant_id == tenant_id, QueryLog.feedback.is_not(None))
+    if rating:
+        q = q.where(QueryLog.feedback == rating)
+    rows = await session.scalars(q.order_by(QueryLog.feedback_at.desc()))
+    return [
+        {
+            "id": f"fb-{r.id.hex[:8]}",
+            "kind": "review",
+            "question": r.question,
+            "rating": r.feedback,
+            "comment": r.feedback_comment,
+            "route": r.route,
+            "sql_used": r.sql,
+            "answer_given": r.answer,
+            "asked_at": r.created_at.isoformat(),
+            "sql": None,
+            "expect": None,
+        }
+        for r in rows
+    ]

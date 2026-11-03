@@ -1,0 +1,187 @@
+[
+ {
+  "id": "erp-01",
+  "kind": "database",
+  "question": "How many buyers do we have?",
+  "answer": {
+   "answer": "Result: total_buyers: 6. (The language model's rate limit or quota was reached. Please try again later.)",
+   "route": "database",
+   "sql": "SELECT COUNT(*) AS total_buyers FROM public.buyers LIMIT 500",
+   "rows": [
+    {
+     "total_buyers": 6
+    }
+   ],
+   "citations": [],
+   "tables_considered": [
+    "public.buyers",
+    "public.employees",
+    "public.materials",
+    "public.production_orders",
+    "public.purchase_order_lines",
+    "public.purchase_orders",
+    "public.styles",
+    "public.suppliers"
+   ],
+   "tokens": 1457,
+   "latency_ms": 10192,
+   "error": null,
+   "attempts": 1
+  },
+  "grade": {
+   "sql_ok": true,
+   "schema_ok": true
+  }
+ },
+ {
+  "id": "erp-14",
+  "kind": "database",
+  "question": "How many open POs do we have?",
+  "answer": {
+   "answer": "The language model's rate limit or quota was reached. Please try again later.",
+   "route": "both",
+   "sql": null,
+   "rows": [],
+   "citations": [],
+   "tables_considered": [
+    "public.buyers",
+    "public.employees",
+    "public.materials",
+    "public.production_orders",
+    "public.purchase_order_lines",
+    "public.purchase_orders",
+    "public.styles",
+    "public.suppliers"
+   ],
+   "tokens": 0,
+   "latency_ms": 8517,
+   "error": "The language model's rate limit or quota was reached. Please try again later.",
+   "attempts": 3
+  },
+  "grade": {
+   "sql_ok": false,
+   "schema_ok": true
+  }
+ },
+ {
+  "id": "erp-38",
+  "kind": "unanswerable",
+  "question": "What is the average salary of the operators?",
+  "answer": {
+   "answer": "The language model's rate limit or quota was reached. Please try again later.",
+   "route": "both",
+   "sql": null,
+   "rows": [],
+   "citations": [],
+   "tables_considered": [
+    "public.buyers",
+    "public.employees",
+    "public.materials",
+    "public.production_orders",
+    "public.purchase_order_lines",
+    "public.purchase_orders",
+    "public.styles",
+    "public.suppliers"
+   ],
+   "tokens": 0,
+   "latency_ms": 9839,
+   "error": "The language model's rate limit or quota was reached. Please try again later.",
+   "attempts": 3
+  },
+  "grade": {
+   "refused": false
+  }
+ },
+ {
+  "id": "chn-03",
+  "kind": "database",
+  "question": "Which artist has the most albums?",
+  "answer": {
+   "answer": "The language model was not found. Check LLM_MODEL.",
+   "route": "database",
+   "sql": null,
+   "rows": [],
+   "citations": [],
+   "tables_considered": [
+    "public.album",
+    "public.track",
+    "public.artist",
+    "public.playlist_track",
+    "public.playlist",
+    "public.genre",
+    "public.invoice_line",
+    "public.media_type"
+   ],
+   "tokens": 0,
+   "latency_ms": 1595,
+   "error": "The language model was not found. Check LLM_MODEL.",
+   "attempts": 1
+  },
+  "grade": {
+   "sql_ok": false,
+   "schema_ok": true
+  }
+ },
+ {
+  "id": "doc-01",
+  "kind": "documents",
+  "question": "What is the total of invoice KE/26-27/8231?",
+  "answer": {
+   "answer": "The language model's rate limit or quota was reached. Please try again later.",
+   "route": "both",
+   "sql": null,
+   "rows": [],
+   "citations": [],
+   "tables_considered": [
+    "public.buyers",
+    "public.employees",
+    "public.materials",
+    "public.production_orders",
+    "public.purchase_order_lines",
+    "public.purchase_orders",
+    "public.styles",
+    "public.suppliers"
+   ],
+   "tokens": 0,
+   "latency_ms": 8662,
+   "error": "The language model's rate limit or quota was reached. Please try again later.",
+   "attempts": 3
+  },
+  "grade": {
+   "facts_ok": false,
+   "citations": 0,
+   "citations_ok": 0
+  }
+ },
+ {
+  "id": "doc-21",
+  "kind": "documents",
+  "question": "What unit price was charged for the Kids Romper on export invoice EXP/26/014?",
+  "answer": {
+   "answer": "The language model's rate limit or quota was reached. Please try again later.",
+   "route": "both",
+   "sql": null,
+   "rows": [],
+   "citations": [],
+   "tables_considered": [
+    "public.buyers",
+    "public.employees",
+    "public.materials",
+    "public.production_orders",
+    "public.purchase_order_lines",
+    "public.purchase_orders",
+    "public.styles",
+    "public.suppliers"
+   ],
+   "tokens": 0,
+   "latency_ms": 8568,
+   "error": "The language model's rate limit or quota was reached. Please try again later.",
+   "attempts": 3
+  },
+  "grade": {
+   "facts_ok": false,
+   "citations": 0,
+   "citations_ok": 0
+  }
+ }
+]

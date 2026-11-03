@@ -274,6 +274,29 @@ Tools: `list_tables`, `describe_table`, `run_sql`, `search_documents`, `get_docu
 | `datachat-agent list-tenants` / `set-limits` | Usage and limits |
 | `datachat-agent check-llm` / `gen-secret` | Test the model / make a SECRET_KEY |
 
+## Evaluation
+
+100 questions with known answers (`eval/datasets/questions.json`): 60 about two databases (a
+made-up garment ERP and the public Chinook music store), 30 about 20 made-up PDFs and 10 that
+need both. Run them against your configured model:
+
+```bash
+python -m eval.run_eval            # loads the sample data, asks everything, writes eval/results/
+python -m eval.run_eval --resume   # continue after a provider's daily limit
+```
+
+| Metric | Target |
+| --- | --- |
+| SQL execution accuracy (rows match the correct query) | 80% |
+| Schema retrieval recall (needed tables shown to the model) | 95% |
+| Document answer accuracy (required facts present) | 85% |
+| Citation precision (cited page holds the fact) | 90% |
+| Refusal correctness ("I don't know" when the data has no answer) | 90% |
+| Median latency | under 4 s |
+
+Answers marked wrong in production can be added as new test questions:
+`datachat-agent export-feedback <tenant id> --out review.json`.
+
 ## Development
 
 ```bash

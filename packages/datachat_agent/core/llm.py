@@ -13,7 +13,7 @@ class LLMUnavailableError(RuntimeError):
     """The model timed out, was overloaded or refused the request. Safe to show to users."""
 
 
-def _build(s: Settings, model: str) -> BaseChatModel:
+def _build(s: Settings, model: str, reasoning: bool = True) -> BaseChatModel:
     if s.llm_provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
 
@@ -36,7 +36,11 @@ def _build(s: Settings, model: str) -> BaseChatModel:
         timeout=s.llm_timeout_seconds,
         max_retries=s.llm_max_retries,
         stream_usage=True,
-        **({"reasoning_effort": s.llm_reasoning_effort} if s.llm_reasoning_effort else {}),
+        **(
+            {"reasoning_effort": s.llm_reasoning_effort}
+            if reasoning and s.llm_reasoning_effort
+            else {}
+        ),
     )
 
 
@@ -46,7 +50,9 @@ def get_chat_model(settings: Settings | None = None) -> BaseChatModel | Runnable
     if not s.llm_model:
         raise RuntimeError("LLM_MODEL is not set. Copy .env.example to .env and pick a provider.")
     primary = _build(s, s.llm_model)
-    fallbacks = [_build(s, m) for m in s.fallback_models]
+    # Backups exist to keep answers flowing, so they use plain defaults: some models reject
+    # reasoning_effort (e.g. Gemini 3.5 Flash Lite answers 400 to "none").
+    fallbacks = [_build(s, m, reasoning=False) for m in s.fallback_models]
     return primary.with_fallbacks(fallbacks) if fallbacks else primary
 
 
