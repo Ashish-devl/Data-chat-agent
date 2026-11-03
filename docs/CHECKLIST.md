@@ -85,14 +85,14 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 ## Week 6 — Distribution
 - [x] D1 Python library: `DataChat` class (`client.py`): `scan_schema()`, `add_pdf()`, `ask()`, `hide()`, `add_term()`, `add_example()`, `documents()`, async twins; own event loop and engine, so it also works inside async code
 - [x] D2 `mount(app, prefix="/ai")` adds the API (and `/widget.js`) to any FastAPI app; tested
-- [~] D3 JS SDK (`sdk-js/`): `ask`, `askStream`, `feedback`, `session`, `uploadDocument`, `listDocuments`, `usage`; no dependencies; 9 tests; checked live against the server. **Publishing to npm waits for your npm account**
+- [~] D3 JS SDK (`sdk-js/`): built, 9 tests, checked live. **npm publishing waits for your npm account** (release skips npm until `PUBLISH_NPM=true`)
 - [x] D4 Widget (`widget/`): one script tag, Preact (10 KB gzipped instead of ~45 KB with React), shadow DOM, streaming, table, sources, feedback, dark mode, keyboard access; served by every server at `/widget.js`; 5 tests
 - [x] D5 Publishable `dc_pub_` key: ask-only (no PDF upload, no session history), checked against its allowed websites via the browser's Origin header, cannot send `user_context` (row-filtered connections refuse it), its conversations kept apart, feedback only on its own answers
 - [x] D6 `key_type` and `allowed_domains` on `api_keys` (migration 0005), wildcard subdomains; CORS for browsers (`CORS_ALLOW_ORIGINS`)
 - [x] D7 MCP server (`datachat-agent mcp`, MCP SDK 2.x): `list_tables`, `describe_table`, `run_sql`, `search_documents`, `get_document_items`, `ask`; secret keys only; rate and token limits; checked over real stdio with Gemini
 - [x] D8 CLI: `scan`, `ingest`, `mcp` (plus `worker`, `list-tenants`, `set-limits` from earlier weeks)
-- [~] D9 PyPI publishing: release workflow (trusted publishing, no stored password) and CI package checks (build, twine, wheel installs) ready. **Needs your PyPI account (docs/RELEASING.md)**
-- [~] D10 Docker image to GitHub Container Registry: release workflow ready, needs no account; first run on the first version tag
+- [x] D9 PyPI publishing by trusted publishing: **0.1.0 published 2026-11-03** (`pip install datachat-agent` checked in a clean environment)
+- [x] D10 Docker image on GitHub Container Registry: **`ghcr.io/ashish-devl/datachat-agent:0.1.0` published**, pulls without logging in
 
 ## Week 7 — Evaluation, security, tests
 - [~] E1 Sample databases: 8-table garment mini-ERP done for Postgres and MySQL with read-only and writer users (`eval/datasets/erp_demo.py`); Chinook or Northwind still to add
