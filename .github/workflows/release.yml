@@ -1,0 +1,97 @@
+name: Release
+
+# Push a tag like v0.1.0 to publish. The tag must match the version in pyproject.toml and
+# sdk-js/package.json. See docs/RELEASING.md for the one-time PyPI and npm setup.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: Tag, Python and npm versions agree
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          py=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          js=$(node -p "require('./sdk-js/package.json').version")
+          echo "tag=$tag python=$py npm=$js"
+          [ "$tag" = "$py" ] && [ "$tag" = "$js" ] || { echo "Versions differ"; exit 1; }
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+
+  pypi:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # trusted publishing: no PyPI password stored in GitHub
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv build
+      - run: uvx twine check dist/*
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  npm:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write  # trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest  # trusted publishing needs npm 11.5+
+      - working-directory: sdk-js
+        run: |
+          npm ci
+          npm test
+          npm publish --provenance --access public
+
+  docker:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/datachat-agent
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  github-release:
+    needs: [pypi, npm, docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') || startsWith(github.ref_name, 'v0.') }}
+          files: packages/datachat_agent/server/static/widget.js

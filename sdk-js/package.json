@@ -1,0 +1,30 @@
+{
+  "name": "datachat-agent",
+  "version": "0.1.0",
+  "description": "JavaScript client for DataChat Agent: ask your SQL database and PDFs in plain English",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=18" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ashish-devl/Data-chat-agent.git",
+    "directory": "sdk-js"
+  },
+  "keywords": ["text-to-sql", "rag", "pdf", "chat", "llm", "agent"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test \"test/**/*.test.js\""
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

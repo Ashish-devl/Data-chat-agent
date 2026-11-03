@@ -18,7 +18,7 @@ from datachat_agent.core.embeddings import Embedder, get_embedder
 from datachat_agent.core.llm import StreamUsage, get_chat_model
 from datachat_agent.core.pii import PiiMasker, StreamUnmasker
 from datachat_agent.security import Scope
-from datachat_agent.server.auth import Principal, require_scope
+from datachat_agent.server.auth import Principal, require_scope, secret_key_only
 from datachat_agent.server.db import get_session, get_sessionmaker
 from datachat_agent.server.limits import enforce_token_budget
 from datachat_agent.server.models import ChatSession, Connection, QueryLog
@@ -165,10 +165,27 @@ def _response(log: QueryLog, client_key: str, state: dict, include_rows: bool) -
     )
 
 
+def session_key(principal: Principal, session_id: str | None) -> str | None:
+    """Widget conversations live in their own space, apart from the app's own sessions."""
+    if not principal.publishable:
+        return session_id
+    return f"pub-{principal.key_id.hex[:12]}:{session_id or uuid.uuid4().hex}"
+
+
+def public_session_id(principal: Principal, client_key: str) -> str:
+    return client_key.split(":", 1)[1] if principal.publishable else client_key
+
+
 async def _prepare(body: AskRequest, principal: Principal, session: AsyncSession):
+    if principal.publishable and body.user_context:
+        # Anyone can read a web page's key; letting them claim a user context would let them
+        # read another company's rows through the row filters.
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Publishable keys cannot send user_context.")
     await enforce_token_budget(session, principal.tenant_id, principal.monthly_token_limit)
     connection = await _pick_connection(body, principal, session)
-    chat = await get_or_create_session(session, principal.tenant_id, body.session_id, body.user_ref)
+    chat = await get_or_create_session(
+        session, principal.tenant_id, session_key(principal, body.session_id), body.user_ref
+    )
     history = await recent_turns(session, chat.id)
     return connection, chat, history
 
@@ -209,7 +226,9 @@ async def ask(
     log = _log_row(principal, chat.id, connection, body.question, state)
     session.add(log)
     await session.commit()
-    response = _response(log, chat.client_key, state, body.include_rows)
+    response = _response(
+        log, public_session_id(principal, chat.client_key), state, body.include_rows
+    )
     if result.llm_unavailable:
         return JSONResponse(status_code=503, content=response.model_dump(mode="json"))
     return response
@@ -235,7 +254,7 @@ async def ask_stream(
     `token` events with the answer as it is written, then `done` with the full /ask response."""
     connection, chat, history = await _prepare(body, principal, session)
     connection_id = connection.id if connection else None
-    chat_id, client_key = chat.id, chat.client_key
+    chat_id, client_key = chat.id, public_session_id(principal, chat.client_key)
 
     async def events():
         started = time.perf_counter()
@@ -345,6 +364,7 @@ async def get_session_history(
     principal: Principal = Depends(asker),
     session: AsyncSession = Depends(get_session),
 ) -> SessionOut:
+    await secret_key_only(principal)
     chat = await session.scalar(
         select(ChatSession).where(
             ChatSession.tenant_id == principal.tenant_id, ChatSession.client_key == session_id

@@ -56,3 +56,40 @@ jobs:
         run: docker build -t datachat-agent:ci .
       - name: CLI starts inside the image
         run: docker run --rm datachat-agent:ci datachat-agent --help
+
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: SDK (sdk-js)
+        working-directory: sdk-js
+        run: |
+          npm ci
+          npm test
+      - name: Widget (widget)
+        working-directory: widget
+        run: |
+          npm ci
+          npx tsc -p tsconfig.json
+          npm test
+          npm run build
+      - name: The widget served by the API is the freshly built one
+        run: cmp widget/dist/widget.js packages/datachat_agent/server/static/widget.js
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Build wheel and sdist
+        run: uv build
+      - name: Check package metadata
+        run: uvx twine check dist/*
+      - name: Wheel installs and starts
+        run: |
+          python -m venv /tmp/v && /tmp/v/bin/pip install dist/*.whl
+          /tmp/v/bin/datachat-agent --help
+          /tmp/v/bin/python -c "import datachat_agent, importlib.resources as r; assert r.files('datachat_agent').joinpath('server/static/widget.js').is_file()"

@@ -40,3 +40,9 @@ def test_server_refuses_invalid_secret_key(monkeypatch):
     with pytest.raises(RuntimeError, match="not a valid key"):
         with TestClient(create_app()):
             pass
+
+
+def test_widget_script_is_served_without_a_key():
+    r = client.get("/widget.js")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/javascript")
+    assert "DataChatWidget" in r.text and "dc_pub_" in r.text

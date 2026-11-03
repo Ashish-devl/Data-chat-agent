@@ -2,7 +2,7 @@
 
 An open-source AI agent that answers plain-English questions from your SQL database and your PDFs, and shows the SQL or page each answer came from.
 
-> Status: early development (v0.1, week 5 of 8). Not ready for production use.
+> Status: early development (v0.1, week 6 of 8). Not ready for production use.
 
 ## Bring your own model key
 
@@ -168,19 +168,111 @@ datachat-agent ask-sql <connection id> "Which production orders are delayed?"
 Per-user row filters (`"row_filters": {"orders": "company_id = :user_company"}`) are wrapped around
 every use of the table; a question without the user's context is refused.
 
-## Install as a package
+## Five ways to use it
+
+### 1. Python library (no server)
 
 ```bash
-pip install datachat-agent      # once released; then `import datachat_agent`
+pip install datachat-agent
 ```
-
-## Embed in your FastAPI app
 
 ```python
-from datachat_agent.server.app import router as datachat_router
+from datachat_agent import DataChat
 
-app.include_router(datachat_router, prefix="/ai")
+with DataChat("postgresql://readonly:secret@host/erp") as dc:
+    dc.scan_schema()  # refuses a user that can write
+    dc.hide("employees", "salary")  # never shown to the model, never queryable
+    dc.add_term("open PO", "status is Open or Partially Received")
+    dc.add_pdf("invoice_8231.pdf")
+    print(dc.ask("What is the total of invoice KE/26-27/8231?").answer)
 ```
+
+It stores what it learns in its own Postgres with pgvector (`DATABASE_URL`, or
+`DataChat(..., storage_url=...)`). `ask` returns `answer`, `sql`, `rows`, `citations` and `chart`;
+`aask`, `ascan_schema` and `aadd_pdf` are the async versions.
+
+### 2. Inside your FastAPI app
+
+```python
+from datachat_agent import mount
+
+mount(app, prefix="/ai")  # serves /ai/v1/ask, /ai/v1/documents, ... and /ai/widget.js
+```
+
+Run `datachat-agent init-db` once to create its tables.
+
+### 3. Self-hosted server (Docker)
+
+`docker compose up --build` starts the API, a background worker, Postgres with pgvector and
+Redis. Configure it with `.env`.
+
+### 4. HTTP API, JavaScript SDK and chat widget
+
+The API is described above and at `/docs` on a running server. From JavaScript:
+
+```js
+import { DataChatClient } from "datachat-agent";   // npm install datachat-agent
+const dc = new DataChatClient({ baseUrl: "https://api.example.com", apiKey: "dc_live_..." });
+const a = await dc.ask("Which production orders are delayed?");
+```
+
+For a web page, create a **publishable** key that works only on your websites and can only ask:
+
+```bash
+curl -X POST localhost:8000/v1/keys -H "$KEY" -H "Content-Type: application/json"   -d '{"name": "website", "type": "publishable", "allowed_domains": ["erp.example.com"]}'
+```
+
+then add one line to the page:
+
+```html
+<script src="https://your-datachat-server/widget.js" data-key="dc_pub_..."
+        data-title="Ask about our data"></script>
+```
+
+Optional: `data-connection`, `data-position="left"`, `data-color="#0f766e"`,
+`data-placeholder`. The widget streams answers, shows a small table and the sources, and has
+Helpful / Wrong buttons. Publishable keys cannot send `user_context`, so a connection with row
+filters refuses widget questions rather than guessing whose rows to show.
+
+### 5. MCP server (Claude Desktop, IDEs)
+
+```bash
+datachat-agent mcp --api-key dc_live_...
+```
+
+Tools: `list_tables`, `describe_table`, `run_sql`, `search_documents`, `get_document_items` and
+`ask`, all read-only. In Claude Desktop's `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "datachat": {
+      "command": "datachat-agent",
+      "args": ["mcp"],
+      "env": {
+        "DATACHAT_API_KEY": "dc_live_...",
+        "DATABASE_URL": "postgresql://datachat:datachat@localhost:5432/datachat",
+        "SECRET_KEY": "...",
+        "LLM_BASE_URL": "...", "LLM_MODEL": "...", "LLM_API_KEY": "..."
+      }
+    }
+  }
+}
+```
+
+### Command line
+
+| Command | Does |
+| --- | --- |
+| `datachat-agent serve` / `worker` | API server / background worker |
+| `datachat-agent init-db` | Create or upgrade tables |
+| `datachat-agent create-tenant NAME` | New account and its first admin key |
+| `datachat-agent scan CONNECTION_ID` | Re-read a database schema |
+| `datachat-agent ingest TENANT_ID FILE...` | Upload and process PDFs |
+| `datachat-agent ask-sql CONNECTION_ID "question"` | Try the SQL step |
+| `datachat-agent mcp` | MCP server over stdio |
+| `datachat-agent list-tenants` / `set-limits` | Usage and limits |
+| `datachat-agent check-llm` / `gen-secret` | Test the model / make a SECRET_KEY |
 
 ## Development
 
@@ -202,6 +294,10 @@ python eval/datasets/erp_demo.py postgresql://datachat:datachat@localhost:5432/p
 
 After changing `server/models.py`, generate a migration with
 `datachat-agent make-migration "what changed"`.
+
+JavaScript parts: `cd sdk-js && npm ci && npm test`; `cd widget && npm ci && npm test && npm run build`,
+then copy `widget/dist/widget.js` to `packages/datachat_agent/server/static/` (CI checks they
+match). Releases: see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Licence
 

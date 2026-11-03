@@ -71,6 +71,11 @@ class ApiKey(Base):
     key_hash: Mapped[str] = mapped_column(String(64), unique=True)
     prefix: Mapped[str] = mapped_column(String(20))
     scopes: Mapped[list[str]] = mapped_column(ARRAY(String(20)))
+    # secret: server-side use. publishable: safe to put in a web page; ask-only, tied to websites.
+    key_type: Mapped[str] = mapped_column(String(20), default="secret", server_default="secret")
+    allowed_domains: Mapped[list[str]] = mapped_column(
+        ARRAY(String(253)), default=list, server_default="{}"
+    )
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = _created_at()

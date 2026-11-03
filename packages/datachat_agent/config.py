@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     max_pdf_mb: int = 20
     jobs_backend: Literal["sync", "inline", "arq"] = "inline"
 
+    # Browsers may call the API from these origins (comma-separated, * = any). Publishable keys
+    # are still checked against their own allowed domains.
+    cors_allow_origins: str = "*"
+
     # Abuse and cost limits. memory: per process (one server); redis: shared by all servers.
     rate_limit_backend: Literal["memory", "redis", "off"] = "memory"
     default_rate_limit_per_minute: int = 60

@@ -23,6 +23,81 @@ def worker() -> None:
     run_worker(WorkerSettings)
 
 
+@app.command()
+def mcp(
+    api_key: str = typer.Option(
+        ..., envvar="DATACHAT_API_KEY", help="A secret key with the 'ask' scope"
+    ),
+    connection_id: str | None = typer.Option(None, help="Which database, if several"),
+) -> None:
+    """Run the MCP server over stdio (for Claude Desktop and other MCP clients)."""
+    from datachat_agent.mcp_server import build_server
+
+    build_server(api_key, connection_id).run("stdio")
+
+
+@app.command()
+def scan(connection_id: str) -> None:
+    """Re-read a connection's schema now (checks the user is read-only first)."""
+    import uuid
+
+    async def _run():
+        from datachat_agent.server.db import get_sessionmaker
+        from datachat_agent.server.models import Connection
+        from datachat_agent.server.services import scan_connection
+
+        async with get_sessionmaker()() as session:
+            conn = await session.get(Connection, uuid.UUID(connection_id))
+            if conn is None:
+                raise typer.BadParameter("No connection with that id.")
+            return await scan_connection(session, conn)
+
+    counts = asyncio.run(_run())
+    typer.echo(
+        f"{counts['tables']} tables, {counts['columns']} columns ({counts['removed']} removed)"
+    )
+
+
+@app.command()
+def ingest(tenant_id: str, files: list[str]) -> None:
+    """Upload PDFs for a tenant and process them now."""
+    import uuid
+    from pathlib import Path
+
+    async def _run():
+        from datachat_agent.config import get_settings
+        from datachat_agent.core.embeddings import get_embedder
+        from datachat_agent.docs.ingest import UploadRejected, ingest_document, store_document
+        from datachat_agent.server.db import get_sessionmaker
+        from datachat_agent.server.jobs import _llm_or_none
+
+        results = []
+        async with get_sessionmaker()() as session:
+            for f in files:
+                path = Path(f)
+                try:
+                    stored = await store_document(
+                        session,
+                        uuid.UUID(tenant_id),
+                        path.name,
+                        path.read_bytes(),
+                        get_settings().max_pdf_mb * 1_000_000,
+                    )
+                except UploadRejected as e:
+                    results.append((path.name, "rejected", str(e)))
+                    continue
+                doc = stored.document
+                if stored.created:
+                    doc = await ingest_document(session, doc.id, get_embedder(), _llm_or_none())
+                results.append(
+                    (path.name, doc.status if stored.created else "duplicate", doc.error or "")
+                )
+        return results
+
+    for name, status, detail in asyncio.run(_run()):
+        typer.echo(f"{name}: {status} {detail}".rstrip())
+
+
 @app.command("init-db")
 def init_db() -> None:
     """Create or upgrade all tables (runs database migrations)."""

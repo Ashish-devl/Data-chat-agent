@@ -40,7 +40,7 @@ async def give_feedback(
             QueryLog.id == body.query_id, QueryLog.tenant_id == principal.tenant_id
         )
     )
-    if log is None:
+    if log is None or (principal.publishable and log.api_key_id != principal.key_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Answer not found")
     log.feedback = body.rating
     log.feedback_comment = (body.comment or "").strip() or None

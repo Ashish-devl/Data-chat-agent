@@ -79,20 +79,20 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [x] B7 PII masking (`MASK_PII=true`): emails, phone numbers, Luhn-valid card numbers, Aadhaar and PAN become placeholders in rows, passages, line items, history and schema samples; real values restored in the answer, also when streamed
 
 - [x] B8 Token counting fixed for streamed replies (Gemini repeats the running total on every chunk)
-- [x] B9 `LLM_REASONING_EFFORT` setting for thinking models (faster, fewer tokens); **still to measure on Gemini once the daily quota resets**
-- [x] B10 Answers no longer call a "top N" selection a total: the query's own LIMIT is stated as a fact in the data
+- [x] B9 `LLM_REASONING_EFFORT`: measured 2026-11-03 on Gemini 3.6 Flash with `none`: answers in 2.4–4.1 s (was 15–27 s) with 1,700–2,600 tokens (was ~7,000), still correct
+- [x] B10 Answers no longer call a "top N" selection a total: the query's own LIMIT is stated as a fact in the data (checked live 2026-11-03)
 
 ## Week 6 — Distribution
-- [ ] D1 Python library: `DataChat` class (`client.py`): `scan_schema()`, `add_pdf()`, `ask()`
-- [ ] D2 Mountable router documented (`app.include_router(router, prefix="/ai")`)
-- [ ] D3 JS SDK (`sdk-js/`), published to npm as `datachat-agent`
-- [ ] D4 Widget (`widget/`): one script tag, built to a single `widget.js`
-- [ ] D5 Publishable `dc_pub_` key: ask-only (no PDF upload from the widget, decided 2026-10-08), with an allowed-domains list
-- [ ] D6 Gap: `key_type` and `allowed_domains` columns on `api_keys`; CORS limited to those domains
-- [ ] D7 MCP server: `datachat-agent mcp` exposes the same tools
-- [ ] D8 CLI: `scan`, `ingest`, `mcp`
-- [ ] D9 PyPI publishing (wheel + sdist) from GitHub Actions
-- [ ] D10 Docker image published (GitHub Container Registry)
+- [x] D1 Python library: `DataChat` class (`client.py`): `scan_schema()`, `add_pdf()`, `ask()`, `hide()`, `add_term()`, `add_example()`, `documents()`, async twins; own event loop and engine, so it also works inside async code
+- [x] D2 `mount(app, prefix="/ai")` adds the API (and `/widget.js`) to any FastAPI app; tested
+- [~] D3 JS SDK (`sdk-js/`): `ask`, `askStream`, `feedback`, `session`, `uploadDocument`, `listDocuments`, `usage`; no dependencies; 9 tests; checked live against the server. **Publishing to npm waits for your npm account**
+- [x] D4 Widget (`widget/`): one script tag, Preact (10 KB gzipped instead of ~45 KB with React), shadow DOM, streaming, table, sources, feedback, dark mode, keyboard access; served by every server at `/widget.js`; 5 tests
+- [x] D5 Publishable `dc_pub_` key: ask-only (no PDF upload, no session history), checked against its allowed websites via the browser's Origin header, cannot send `user_context` (row-filtered connections refuse it), its conversations kept apart, feedback only on its own answers
+- [x] D6 `key_type` and `allowed_domains` on `api_keys` (migration 0005), wildcard subdomains; CORS for browsers (`CORS_ALLOW_ORIGINS`)
+- [x] D7 MCP server (`datachat-agent mcp`, MCP SDK 2.x): `list_tables`, `describe_table`, `run_sql`, `search_documents`, `get_document_items`, `ask`; secret keys only; rate and token limits; checked over real stdio with Gemini
+- [x] D8 CLI: `scan`, `ingest`, `mcp` (plus `worker`, `list-tenants`, `set-limits` from earlier weeks)
+- [~] D9 PyPI publishing: release workflow (trusted publishing, no stored password) and CI package checks (build, twine, wheel installs) ready. **Needs your PyPI account (docs/RELEASING.md)**
+- [~] D10 Docker image to GitHub Container Registry: release workflow ready, needs no account; first run on the first version tag
 
 ## Week 7 — Evaluation, security, tests
 - [~] E1 Sample databases: 8-table garment mini-ERP done for Postgres and MySQL with read-only and writer users (`eval/datasets/erp_demo.py`); Chinook or Northwind still to add
@@ -102,14 +102,14 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [ ] E5 Targets: SQL accuracy 80%, schema recall 95%, document accuracy 85%, citation precision 90%, refusal 90%, median latency < 4 s (note: free Gemini took 3–21 s per question on 2026-10-21; the < 4 s target needs a faster model or the paid tier)
 - [x] E6 Executor tests: timeout fires, LIMIT applied, row filter applied, write fails on a read-only user and inside the read-only transaction even for a writer
 - [x] E7 Tenancy tests: keys, connections (every route), schema items, terms, examples, sessions and documents (every route); same file or session key in two tenants stays separate
-- [~] E8 Auth tests: revoked key (every route), wrong scope (ask, docs, admin) done; publishable key limits in week 6
+- [x] E8 Auth tests: revoked key (every route), wrong scope, publishable key limits (website check, ask-only, no user_context, private sessions, own feedback only), MCP key checks
 - [ ] E9 Feedback → evaluation set export
 
 ## Week 8 — Launch (checkpoint: evaluation targets met)
 - [ ] L1 Admin console (React + Vite): connections, documents, semantic layer, keys, users, query log, usage
 - [ ] L2 Console login: email + password (decided 2026-10-08): `users` table (tenant, email, password hash, role owner/member), sessions, password reset by CLI
 - [x] L3 Nightly schema re-scan: arq cron at 02:00 re-reads every working connection (`server/worker.py`)
-- [ ] L4 README quickstart for all five ways to use it; API reference; screenshots
+- [~] L4 README: all five ways to use it, CLI table, widget and MCP setup done; API reference page and screenshots in week 8
 - [ ] L5 Demo video
 - [ ] L6 Deploy: API + Postgres + Redis on Railway, console on Vercel
 - [ ] L9 Hosted mode only: block customer DSNs that point at private or internal network addresses (SSRF guard); self-hosters keep private addresses
