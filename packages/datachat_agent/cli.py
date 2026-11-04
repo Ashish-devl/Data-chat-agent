@@ -126,6 +126,87 @@ def export_feedback_cmd(
         typer.echo(text)
 
 
+def _new_password() -> str:
+    import secrets
+    import string
+
+    alphabet = string.ascii_letters + string.digits
+    while True:
+        pw = "".join(secrets.choice(alphabet) for _ in range(16))
+        if (
+            any(c.islower() for c in pw)
+            and any(c.isupper() for c in pw)
+            and any(c.isdigit() for c in pw)
+        ):
+            return pw
+
+
+async def _add_user(tenant_id, email: str, role: str, name: str | None) -> str:
+    from datachat_agent.security import hash_password
+    from datachat_agent.server.db import get_sessionmaker
+    from datachat_agent.server.models import User
+
+    password = _new_password()
+    async with get_sessionmaker()() as session:
+        session.add(
+            User(
+                tenant_id=tenant_id,
+                email=email.strip().lower(),
+                name=name,
+                role=role,
+                password_hash=hash_password(password),
+            )
+        )
+        await session.commit()
+    return password
+
+
+@app.command("create-user")
+def create_user(
+    tenant_id: str,
+    email: str,
+    role: str = typer.Option("member", help="owner or member"),
+    name: str | None = typer.Option(None),
+) -> None:
+    """Add a console user to a tenant. Prints a generated password once."""
+    import uuid
+
+    if role not in ("owner", "member"):
+        raise typer.BadParameter("role must be owner or member")
+    password = asyncio.run(_add_user(uuid.UUID(tenant_id), email, role, name))
+    typer.echo(f"Console user {email} ({role}) created.")
+    typer.echo(f"Password (shown once): {password}")
+
+
+@app.command("reset-password")
+def reset_password(email: str) -> None:
+    """Give a console user a new generated password and sign them out everywhere."""
+
+    async def _run() -> str | None:
+        from sqlalchemy import select, update
+
+        from datachat_agent.security import hash_password
+        from datachat_agent.server.db import get_sessionmaker
+        from datachat_agent.server.models import ConsoleSession, User
+
+        async with get_sessionmaker()() as session:
+            user = await session.scalar(select(User).where(User.email == email.strip().lower()))
+            if user is None:
+                return None
+            password = _new_password()
+            user.password_hash = hash_password(password)
+            await session.execute(
+                update(ConsoleSession).where(ConsoleSession.user_id == user.id).values(revoked=True)
+            )
+            await session.commit()
+            return password
+
+    password = asyncio.run(_run())
+    if password is None:
+        raise typer.BadParameter("No console user with that email.")
+    typer.echo(f"New password for {email} (shown once): {password}")
+
+
 @app.command("init-db")
 def init_db() -> None:
     """Create or upgrade all tables (runs database migrations)."""
@@ -146,8 +227,11 @@ def make_migration(message: str) -> None:
 
 
 @app.command("create-tenant")
-def create_tenant(name: str) -> None:
-    """Create a tenant and its first admin API key."""
+def create_tenant(
+    name: str,
+    owner_email: str | None = typer.Option(None, help="Also create a console owner"),
+) -> None:
+    """Create a tenant and its first admin API key (and optionally a console owner)."""
 
     async def _run() -> str:
         from datachat_agent.security import Scope, generate_api_key
@@ -169,10 +253,16 @@ def create_tenant(name: str) -> None:
                 )
             )
             await session.commit()
-            return key
+            tenant_id = tenant.id
+        # Same event loop: the database engine belongs to the loop that created it.
+        password = await _add_user(tenant_id, owner_email, "owner", None) if owner_email else None
+        return key, tenant_id, password
 
-    key = asyncio.run(_run())
-    typer.echo(f"Tenant '{name}' created.\nAdmin API key (shown once, store it now):\n{key}")
+    key, tenant_id, password = asyncio.run(_run())
+    typer.echo(f"Tenant '{name}' created (id {tenant_id}).")
+    typer.echo(f"Admin API key (shown once, store it now):\n{key}")
+    if password:
+        typer.echo(f"Console owner {owner_email}, password (shown once): {password}")
 
 
 @app.command("list-tenants")

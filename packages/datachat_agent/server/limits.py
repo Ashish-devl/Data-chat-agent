@@ -99,3 +99,20 @@ async def enforce_token_budget(
             status.HTTP_429_TOO_MANY_REQUESTS,
             f"This account has used its monthly limit of {limit:,} model tokens.",
         )
+
+
+LOGIN_ATTEMPTS_PER_MINUTE = 5
+
+
+async def enforce_login_limit(email: str) -> None:
+    """Slow down password guessing: a few sign-in attempts per email per minute."""
+    settings = get_settings()
+    backend = "memory" if settings.rate_limit_backend == "off" else settings.rate_limit_backend
+    window = int(time.time() // WINDOW_SECONDS)
+    count = await _limiter(backend, settings.redis_url).hit(f"login:{email}", window)
+    if count > LOGIN_ATTEMPTS_PER_MINUTE:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many sign-in attempts. Wait a minute and try again.",
+            headers={"Retry-After": str(WINDOW_SECONDS)},
+        )

@@ -27,6 +27,47 @@ def generate_api_key(publishable: bool = False) -> tuple[str, str, str]:
     return key, key[: len(head) + 4], hash_api_key(key)
 
 
+SESSION_PREFIX = "dc_sess_"
+_SCRYPT = {"n": 2**14, "r": 8, "p": 1}
+
+
+def hash_password(password: str) -> str:
+    """scrypt with a random salt, stored as scrypt$n$r$p$salt$hash (hex)."""
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode(), salt=salt, dklen=32, **_SCRYPT)
+    return f"scrypt${_SCRYPT['n']}${_SCRYPT['r']}${_SCRYPT['p']}${salt.hex()}${digest.hex()}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        _, n, r, p, salt, digest = stored.split("$")
+        check = hashlib.scrypt(
+            password.encode(), salt=bytes.fromhex(salt), dklen=32, n=int(n), r=int(r), p=int(p)
+        )
+    except (ValueError, TypeError):
+        return False
+    return secrets.compare_digest(check.hex(), digest)
+
+
+# Checked against when the email is unknown, so a wrong email takes as long as a wrong password.
+DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(16))
+
+
+def password_problem(password: str) -> str | None:
+    if len(password) < 10:
+        return "Use at least 10 characters."
+    if password.lower() == password or password.upper() == password:
+        return "Mix upper- and lower-case letters."
+    if not any(c.isdigit() for c in password):
+        return "Include at least one digit."
+    return None
+
+
+def generate_session_token() -> tuple[str, str]:
+    token = SESSION_PREFIX + secrets.token_urlsafe(32)
+    return token, hash_api_key(token)
+
+
 def normalize_domain(value: str) -> str:
     """'https://Shop.Example.com/x' -> 'shop.example.com'; '*.example.com' stays a wildcard."""
     v = value.strip().lower()

@@ -2,8 +2,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, Response
+from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from datachat_agent import __version__
 from datachat_agent.config import get_settings
@@ -20,6 +21,7 @@ from datachat_agent.server.routes import (
     knowledge,
     schema_items,
     usage,
+    users,
 )
 
 # Include-able in any FastAPI app: host_app.include_router(router, prefix="/ai")
@@ -33,6 +35,7 @@ router.include_router(knowledge.router)
 router.include_router(documents.router)
 router.include_router(ask.router)
 router.include_router(feedback.router)
+router.include_router(users.router)
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -48,6 +51,37 @@ async def widget_js() -> Response:
         (STATIC_DIR / "widget.js").read_bytes(),
         media_type="text/javascript",
         headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+CONSOLE_DIR = STATIC_DIR / "console"
+_TYPES = {
+    ".html": "text/html",
+    ".js": "text/javascript",
+    ".css": "text/css",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+}
+
+
+@static_router.get("/console", include_in_schema=False)
+async def console_root(request: Request) -> RedirectResponse:
+    return RedirectResponse(str(request.url.replace(path=request.url.path + "/")))
+
+
+@static_router.get("/console/{path:path}", include_in_schema=False)
+async def console_files(path: str) -> Response:
+    """The admin console (built from console/). Unknown paths get index.html (one-page app)."""
+    root = CONSOLE_DIR.resolve()
+    target = (root / path).resolve()
+    if not target.is_relative_to(root) or not target.is_file():
+        target = root / "index.html"
+    cache = "no-cache" if target.name == "index.html" else "public, max-age=31536000, immutable"
+    return Response(
+        target.read_bytes(),
+        media_type=_TYPES.get(target.suffix, "application/octet-stream"),
+        headers={"Cache-Control": cache},
     )
 
 

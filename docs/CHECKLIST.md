@@ -109,8 +109,8 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [x] E11 Backup models no longer get `LLM_REASONING_EFFORT` (Gemini 3.5 Flash Lite rejects it)
 
 ## Week 8 — Launch (checkpoint: evaluation targets met)
-- [ ] L1 Admin console (React + Vite): connections, documents, semantic layer, keys, users, query log, usage
-- [ ] L2 Console login: email + password (decided 2026-10-08): `users` table (tenant, email, password hash, role owner/member), sessions, password reset by CLI
+- [x] L1 Admin console (`console/`, React 19 + Vite, 78 KB gzipped): overview, databases (test, scan, hide/describe columns, business terms, worked examples), documents (upload, status, line items, download, delete), try-it chat (streaming), query log (search, rating and error filters, SQL and answer), API keys (secret and website keys, shown once, widget snippet), users, account; members see only their pages; served at `/console` by every server; 7 tests
+- [x] L2 Console login: `users` and `console_sessions` (migration 0006); scrypt passwords with strength rules; 12-hour revocable session tokens (hash stored); same reply for unknown email and wrong password; 5 attempts per email per minute; owner/member roles; at least one active owner kept; password change signs out other devices; `create-user`, `reset-password`, `create-tenant --owner-email`; `GET /v1/query-log`; 12 tests
 - [x] L3 Nightly schema re-scan: arq cron at 02:00 re-reads every working connection (`server/worker.py`)
 - [~] L4 README: all five ways to use it, CLI table, widget and MCP setup done; API reference page and screenshots in week 8
 - [ ] L5 Demo video

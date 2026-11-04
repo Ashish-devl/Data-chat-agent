@@ -81,6 +81,38 @@ class ApiKey(Base):
     created_at: Mapped[datetime] = _created_at()
 
 
+class User(Base):
+    """A person who signs in to the admin console. Owners manage everything; members ask
+    questions and manage documents."""
+
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = _pk()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    email: Mapped[str] = mapped_column(String(254), unique=True)  # stored lower-case
+    name: Mapped[str | None] = mapped_column(String(100))
+    password_hash: Mapped[str] = mapped_column(String(300))
+    role: Mapped[str] = mapped_column(String(20), default="member")  # owner | member
+    disabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = _created_at()
+
+
+class ConsoleSession(Base):
+    """A signed-in console session. Only the token's hash is stored."""
+
+    __tablename__ = "console_sessions"
+
+    id: Mapped[uuid.UUID] = _pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = _created_at()
+
+
 class Connection(Base):
     __tablename__ = "connections"
 

@@ -78,6 +78,15 @@ jobs:
           npm run build
       - name: The widget served by the API is the freshly built one
         run: cmp widget/dist/widget.js packages/datachat_agent/server/static/widget.js
+      - name: Admin console (console)
+        working-directory: console
+        run: |
+          npm ci
+          npx tsc -p tsconfig.json
+          npm test
+          npm run build
+      - name: The console served by the API is the freshly built one
+        run: diff -r console/dist packages/datachat_agent/server/static/console
 
   package:
     runs-on: ubuntu-latest

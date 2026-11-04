@@ -2,7 +2,7 @@
 
 An open-source AI agent that answers plain-English questions from your SQL database and your PDFs, and shows the SQL or page each answer came from.
 
-> Status: preview release 0.1.0 (week 6 of 8 toward v1.0). Not ready for production use yet.
+> Status: preview release 0.1.0 (week 8 of 8 toward v1.0). Not ready for production use yet.
 
 ## Bring your own model key
 
@@ -168,6 +168,20 @@ datachat-agent ask-sql <connection id> "Which production orders are delayed?"
 Per-user row filters (`"row_filters": {"orders": "company_id = :user_company"}`) are wrapped around
 every use of the table; a question without the user's context is refused.
 
+## Admin console
+
+Every server has a console at **`/console`** (e.g. http://localhost:8000/console): connect
+databases and hide or describe columns, add business terms and worked examples, upload PDFs, try
+questions, read the query log, and manage API keys and users.
+
+```bash
+datachat-agent create-tenant "My company" --owner-email you@example.com   # prints a password
+datachat-agent create-user <tenant id> colleague@example.com --role member
+datachat-agent reset-password you@example.com
+```
+
+Owners can do everything; members can ask questions and manage documents.
+
 ## Five ways to use it
 
 ### 1. Python library (no server)
@@ -317,6 +331,9 @@ python eval/datasets/erp_demo.py postgresql://datachat:datachat@localhost:5432/p
 
 After changing `server/models.py`, generate a migration with
 `datachat-agent make-migration "what changed"`.
+
+Console: `cd console && npm ci && npm run dev` (proxies the API at :8000); after changing it, `npm run build`
+and copy `console/dist` to `packages/datachat_agent/server/static/console` (CI checks they match).
 
 JavaScript parts: `cd sdk-js && npm ci && npm test`; `cd widget && npm ci && npm test && npm run build`,
 then copy `widget/dist/widget.js` to `packages/datachat_agent/server/static/` (CI checks they
