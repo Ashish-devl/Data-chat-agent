@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, within, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../src/App";
@@ -65,8 +65,10 @@ describe("signing in", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect(await screen.findByText("Welcome, Asha")).toBeTruthy();
     expect(localStorage.getItem("datachat-console-token")).toBe("dc_sess_abc");
+    // Only the menu: the overview can also link to "Try it" once its data has loaded.
+    const menu = within(screen.getByRole("navigation", { name: "Main" }));
     for (const name of ["Databases", "Documents", "Try it", "Query log", "API keys", "Users"]) {
-      expect(screen.getByRole("link", { name })).toBeTruthy();
+      expect(menu.getByRole("link", { name })).toBeTruthy();
     }
     expect(await screen.findByText("1,200")).toBeTruthy(); // tokens this month
     const usage = calls.find((c) => c.url === "/usage");
