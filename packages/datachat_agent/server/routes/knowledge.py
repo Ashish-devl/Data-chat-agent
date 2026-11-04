@@ -86,6 +86,7 @@ async def list_terms(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> list[TermOut]:
+    """Business terms for this database."""
     conn = await get_owned_connection(connection_id, principal, session)
     rows = await session.scalars(
         select(GlossaryTerm)
@@ -106,6 +107,9 @@ async def create_term(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> TermOut:
+    """Teach a business term, e.g. `open PO` = a purchase order whose status is Open or Partially
+    Received.
+    """
     conn = await get_owned_connection(connection_id, principal, session)
     term = GlossaryTerm(
         tenant_id=principal.tenant_id,
@@ -142,6 +146,7 @@ async def update_term(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> TermOut:
+    """Change a business term."""
     term = await _owned_term(term_id, principal, session)
     if body.term is not None:
         term.term = body.term.strip()
@@ -163,6 +168,7 @@ async def delete_term(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
+    """Remove a business term."""
     await session.delete(await _owned_term(term_id, principal, session))
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -174,6 +180,7 @@ async def list_examples(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> list[ExampleOut]:
+    """Worked question-to-SQL examples for this database."""
     conn = await get_owned_connection(connection_id, principal, session)
     rows = await session.scalars(
         select(SqlExample)
@@ -194,6 +201,9 @@ async def create_example(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> ExampleOut:
+    """Add a worked example. Its SQL must pass the same safety checks as any query; the 3 closest
+    examples are shown to the model.
+    """
     conn = await get_owned_connection(connection_id, principal, session)
     if conn.last_scanned_at is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Scan the connection before adding examples")
@@ -226,6 +236,7 @@ async def delete_example(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
+    """Remove a worked example."""
     example = await session.scalar(
         select(SqlExample).where(
             SqlExample.id == example_id, SqlExample.tenant_id == principal.tenant_id

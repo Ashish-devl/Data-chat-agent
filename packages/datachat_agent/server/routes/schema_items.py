@@ -37,6 +37,9 @@ async def update_schema_item(
     principal: Principal = Depends(require_scope(Scope.ADMIN)),
     session: AsyncSession = Depends(get_session),
 ) -> SchemaItemOut:
+    """Describe a table or column, or hide it. Hidden items are never shown to the model and can
+    never be queried.
+    """
     item = await session.scalar(
         select(SchemaItem)
         .join(Connection, Connection.id == SchemaItem.connection_id)

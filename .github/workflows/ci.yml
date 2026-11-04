@@ -45,6 +45,10 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
+      - name: API reference is up to date
+        env:
+          SECRET_KEY: not-used-here
+        run: python scripts/api_reference.py --check
       - name: Tests (unit + integration against Postgres and MySQL)
         run: pytest -q -rs
 

@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     # the model; the real values are put back into the answer.
     mask_pii: bool = False
 
+    # Hosted service: refuse connection strings that point at internal network addresses.
+    # Leave off when self-hosting, where databases usually live on a private network.
+    block_private_networks: bool = False
+
     # Guards on every query against a customer database.
     sql_timeout_seconds: int = 10
     sql_max_rows: int = 500

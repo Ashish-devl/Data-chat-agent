@@ -67,6 +67,9 @@ async def create_key(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> KeyCreated:
+    """Create a key. The full key is in this response only. A publishable key (type `publishable`)
+    is ask-only and works only from `allowed_domains`.
+    """
     publishable = body.type == "publishable"
     key, prefix, key_hash = generate_api_key(publishable=publishable)
     row = ApiKey(
@@ -89,6 +92,7 @@ async def list_keys(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> list[ApiKey]:
+    """API keys of this account, newest first. The keys themselves are never shown again."""
     rows = await session.scalars(
         select(ApiKey)
         .where(ApiKey.tenant_id == principal.tenant_id)
@@ -103,6 +107,7 @@ async def revoke_key(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
+    """Revoke a key. Anything using it stops working at once."""
     row = await session.scalar(
         select(ApiKey).where(ApiKey.id == key_id, ApiKey.tenant_id == principal.tenant_id)
     )

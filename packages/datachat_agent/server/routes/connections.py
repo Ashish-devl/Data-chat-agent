@@ -20,7 +20,12 @@ from datachat_agent.server.services import (
     scan_connection,
     test_connection,
 )
-from datachat_agent.sql.connector import ConnectionConfigError, dispose_engine, normalize_dsn
+from datachat_agent.sql.connector import (
+    ConnectionConfigError,
+    check_dsn_allowed,
+    dispose_engine,
+    normalize_dsn,
+)
 
 router = APIRouter(prefix="/connections", tags=["connections"])
 admin = require_scope(Scope.ADMIN)
@@ -120,6 +125,7 @@ async def get_owned_connection(
 def _parse_dsn(dsn: str) -> str:
     try:
         dialect, _ = normalize_dsn(dsn)
+        check_dsn_allowed(dsn)
     except ConnectionConfigError as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from None
     return dialect
@@ -131,6 +137,9 @@ async def create_connection(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> ConnectionOut:
+    """Register a database. The dialect comes from the connection string; the string is encrypted at
+    rest. Test it next.
+    """
     dialect = _parse_dsn(body.dsn)
     conn = Connection(
         tenant_id=principal.tenant_id,
@@ -152,6 +161,7 @@ async def list_connections(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> list[ConnectionOut]:
+    """Connected databases, oldest first. Passwords are never returned."""
     rows = await session.scalars(
         select(Connection)
         .where(Connection.tenant_id == principal.tenant_id)
@@ -166,6 +176,7 @@ async def get_connection(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> ConnectionOut:
+    """One connected database."""
     return ConnectionOut.of(await get_owned_connection(connection_id, principal, session))
 
 
@@ -176,6 +187,9 @@ async def update_connection(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> ConnectionOut:
+    """Rename it, change the connection string (it must be tested again), the schema allowlist or
+    the row filters.
+    """
     conn = await get_owned_connection(connection_id, principal, session)
     if body.dsn is not None:
         dialect = _parse_dsn(body.dsn)
@@ -199,6 +213,7 @@ async def delete_connection(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
+    """Remove a database and everything learned about it (schema, terms, examples)."""
     conn = await get_owned_connection(connection_id, principal, session)
     dispose_engine(decrypt(conn.dsn_encrypted))
     await session.delete(conn)
@@ -212,6 +227,10 @@ async def test_connection_route(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> ConnectionOut:
+    """Connect and check the user can only read.
+
+    A user that can write is refused (`status: rejected`).
+    """
     conn = await get_owned_connection(connection_id, principal, session)
     await test_connection(session, conn)
     return ConnectionOut.of(conn)
@@ -249,6 +268,7 @@ async def get_schema(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> list[SchemaTableOut]:
+    """Tables and columns as last scanned, with descriptions, sample values and hidden flags."""
     conn = await get_owned_connection(connection_id, principal, session)
     items = list(
         await session.scalars(

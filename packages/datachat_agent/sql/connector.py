@@ -1,7 +1,9 @@
 """Engines for customer databases, and layer 1 of the safety model: the user must be read-only."""
 
 import hashlib
+import ipaddress
 import re
+import socket
 import threading
 from dataclasses import dataclass
 
@@ -38,16 +40,71 @@ def normalize_dsn(dsn: str) -> tuple[str, str]:
     return dialect, url.render_as_string(hide_password=False)
 
 
+# Query options that would let a connection string point somewhere other than its host.
+_REDIRECTING_OPTIONS = {"host", "hostaddr", "service", "unix_socket", "socket", "passfile"}
+
+
+def public_address(host: str | None) -> str:
+    """Resolve a host and refuse it unless every address is public. Returns one to connect to.
+
+    Used in hosted mode (BLOCK_PRIVATE_NETWORKS=true) so a customer's connection string cannot
+    reach the server's own network: localhost, 10.x, 192.168.x, cloud metadata addresses...
+    """
+    if not host:
+        raise ConnectionConfigError("The connection string must name a host.")
+    try:
+        infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except (socket.gaierror, UnicodeError):
+        raise ConnectionConfigError(f"Cannot find the host '{host}'.") from None
+    addresses = sorted({info[4][0] for info in infos})
+    for raw in addresses:
+        addr = ipaddress.ip_address(raw.split("%", 1)[0])
+        if not addr.is_global or addr.is_multicast:
+            raise ConnectionConfigError(
+                f"'{host}' points to an internal network address, which is not allowed here."
+            )
+    return addresses[0]
+
+
+def check_dsn_allowed(dsn: str) -> None:
+    """In hosted mode: the connection string must point at a public address and nowhere else."""
+    from datachat_agent.config import get_settings
+
+    if not get_settings().block_private_networks:
+        return
+    url = make_url(normalize_dsn(dsn)[1])
+    if _REDIRECTING_OPTIONS & {k.lower() for k in url.query}:
+        raise ConnectionConfigError("Connection options that change the host are not allowed.")
+    public_address(url.host)
+
+
+def engine_options(dialect: str, url: str) -> tuple[str, dict]:
+    """The URL and driver options for an engine; in hosted mode, pinned to a checked address."""
+    from datachat_agent.config import get_settings
+
+    if dialect == "postgresql":
+        connect_args = {"connect_timeout": 5, "application_name": "datachat-agent"}
+    else:
+        connect_args = {"connect_timeout": 5, "read_timeout": 60, "charset": "utf8mb4"}
+    if get_settings().block_private_networks:
+        check_dsn_allowed(url)
+        parsed = make_url(url)
+        ip = public_address(parsed.host)
+        # Connect to the address that was checked, so a later DNS change cannot redirect it.
+        if dialect == "postgresql":
+            connect_args["hostaddr"] = ip  # host stays for TLS certificate checks
+        else:
+            url = parsed.set(host=ip).render_as_string(hide_password=False)
+    return url, connect_args
+
+
 def get_engine(dsn: str) -> Engine:
     dialect, url = normalize_dsn(dsn)
     key = hashlib.sha256(url.encode()).hexdigest()
     with _lock:
         engine = _engines.get(key)
         if engine is None:
-            if dialect == "postgresql":
-                connect_args = {"connect_timeout": 5, "application_name": "datachat-agent"}
-            else:
-                connect_args = {"connect_timeout": 5, "read_timeout": 60, "charset": "utf8mb4"}
+            url, connect_args = engine_options(dialect, url)
             engine = create_engine(
                 url,
                 pool_size=2,

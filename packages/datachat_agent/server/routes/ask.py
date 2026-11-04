@@ -198,6 +198,9 @@ async def ask(
     llm=Depends(llm_dependency),
     embedder: Embedder = Depends(get_embedder),
 ):
+    """Ask a question. The answer comes from the database, the documents or both, with the SQL,
+    rows, citations and a chart hint. Returns 503 with `error` set when the model is unavailable.
+    """
     connection, chat, history = await _prepare(body, principal, session)
     result: AgentResult = await run_agent(
         body.question,
@@ -364,6 +367,7 @@ async def get_session_history(
     principal: Principal = Depends(asker),
     session: AsyncSession = Depends(get_session),
 ) -> SessionOut:
+    """The turns of a conversation (secret keys and console users)."""
     await secret_key_only(principal)
     chat = await session.scalar(
         select(ChatSession).where(

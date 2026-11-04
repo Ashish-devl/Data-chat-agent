@@ -106,6 +106,9 @@ def _check_password(password: str) -> None:
 
 @router.post("/auth/login", response_model=LoginOut)
 async def login(body: LoginIn, session: AsyncSession = Depends(get_session)) -> LoginOut:
+    """Sign in to the console with email and password. Returns a session token valid for 12 hours.
+    No key needed.
+    """
     email = body.email.strip().lower()
     await enforce_login_limit(email)
     user = await session.scalar(select(User).where(User.email == email))
@@ -131,6 +134,7 @@ def _require_user(principal: Principal) -> uuid.UUID:
 async def logout(
     principal: Principal = Depends(authenticate), session: AsyncSession = Depends(get_session)
 ) -> Response:
+    """End this console session."""
     _require_user(principal)
     await session.execute(
         update(ConsoleSession).where(ConsoleSession.id == principal.session_id).values(revoked=True)
@@ -143,6 +147,7 @@ async def logout(
 async def me(
     principal: Principal = Depends(authenticate), session: AsyncSession = Depends(get_session)
 ) -> Me:
+    """The signed-in console user."""
     return await _me(session, await session.get(User, _require_user(principal)))
 
 
@@ -152,6 +157,7 @@ async def change_password(
     principal: Principal = Depends(authenticate),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
+    """Change your password. Your other sessions are signed out."""
     user = await session.get(User, _require_user(principal))
     if not verify_password(body.current_password, user.password_hash):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "The current password is wrong")
@@ -191,6 +197,7 @@ async def _active_owners(session: AsyncSession, tenant_id: uuid.UUID) -> int:
 async def list_users(
     principal: Principal = Depends(admin), session: AsyncSession = Depends(get_session)
 ) -> list[UserOut]:
+    """Console users of this account."""
     rows = await session.scalars(
         select(User).where(User.tenant_id == principal.tenant_id).order_by(User.created_at)
     )
@@ -203,6 +210,7 @@ async def create_user(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> UserOut:
+    """Add a console user (owner or member) with a password that meets the rules."""
     _check_password(body.password)
     user = User(
         tenant_id=principal.tenant_id,
@@ -228,6 +236,9 @@ async def update_user(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> UserOut:
+    """Change a user's name or role, or disable them (which signs them out). At least one active
+    owner is kept.
+    """
     user = await _owned_user(user_id, principal, session)
     losing_owner = (
         user.role == "owner"
@@ -259,6 +270,7 @@ async def delete_user(
     principal: Principal = Depends(admin),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
+    """Remove a console user. You cannot remove yourself or the last owner."""
     user = await _owned_user(user_id, principal, session)
     if user.id == principal.user_id:
         raise HTTPException(status.HTTP_409_CONFLICT, "You cannot delete yourself")

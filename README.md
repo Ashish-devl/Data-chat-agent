@@ -165,6 +165,11 @@ datachat-agent ask-sql <connection id> "Which production orders are delayed?"
    functions, `LIMIT 500` at most.
 3. Queries run in a read-only transaction with a 10-second timeout.
 
+Running it as a service for other companies? Set `BLOCK_PRIVATE_NETWORKS=true` so nobody can
+point a connection at your own internal network.
+
+Full endpoint reference: [docs/API.md](docs/API.md).
+
 Per-user row filters (`"row_filters": {"orders": "company_id = :user_company"}`) are wrapped around
 every use of the table; a question without the user's context is refused.
 

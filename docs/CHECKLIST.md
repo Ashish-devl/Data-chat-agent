@@ -112,10 +112,10 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [x] L1 Admin console (`console/`, React 19 + Vite, 78 KB gzipped): overview, databases (test, scan, hide/describe columns, business terms, worked examples), documents (upload, status, line items, download, delete), try-it chat (streaming), query log (search, rating and error filters, SQL and answer), API keys (secret and website keys, shown once, widget snippet), users, account; members see only their pages; served at `/console` by every server; 7 tests
 - [x] L2 Console login: `users` and `console_sessions` (migration 0006); scrypt passwords with strength rules; 12-hour revocable session tokens (hash stored); same reply for unknown email and wrong password; 5 attempts per email per minute; owner/member roles; at least one active owner kept; password change signs out other devices; `create-user`, `reset-password`, `create-tenant --owner-email`; `GET /v1/query-log`; 12 tests
 - [x] L3 Nightly schema re-scan: arq cron at 02:00 re-reads every working connection (`server/worker.py`)
-- [~] L4 README: all five ways to use it, CLI table, widget and MCP setup done; API reference page and screenshots in week 8
+- [~] L4 README: all five ways to use it, console, CLI, widget, MCP, evaluation; `docs/API.md` generated from the server's OpenAPI description with every endpoint described (CI fails if it is out of date). **Screenshots still to add** (taken while recording the demo)
 - [ ] L5 Demo video
 - [ ] L6 Deploy: API + Postgres + Redis on Railway, console on Vercel
-- [ ] L9 Hosted mode only: block customer DSNs that point at private or internal network addresses (SSRF guard); self-hosters keep private addresses
+- [x] L9 Hosted mode (`BLOCK_PRIVATE_NETWORKS=true`): connection strings to localhost, private, link-local, carrier-grade NAT and other non-public addresses refused (incl. cloud metadata 169.254.169.254 and IPv6 equivalents); options that redirect the host refused; connections pinned to the checked address against DNS rebinding; 22 tests
 - [ ] L7 Release v1.0.0: tag, PyPI, npm, Docker image, GitHub release notes
 - [ ] L8 **Checkpoint:** every box above ticked and evaluation targets met
 

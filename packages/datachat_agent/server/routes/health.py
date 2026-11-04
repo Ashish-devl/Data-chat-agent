@@ -7,4 +7,5 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 async def health() -> dict[str, str]:
+    """Liveness check: the server is up. No key needed."""
     return {"status": "ok", "version": __version__}

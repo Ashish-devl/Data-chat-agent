@@ -136,6 +136,7 @@ async def list_documents(
     principal: Principal = Depends(docs_scope),
     session: AsyncSession = Depends(get_session),
 ) -> list[DocumentOut]:
+    """Uploaded PDFs, newest first, with processing status and counts."""
     docs = list(
         await session.scalars(
             select(Document)
@@ -153,6 +154,7 @@ async def get_document(
     principal: Principal = Depends(docs_scope),
     session: AsyncSession = Depends(get_session),
 ) -> DocumentOut:
+    """One document's status, page count, printed date and counts."""
     doc = await _owned(document_id, principal, session)
     return _out(doc, (await _counts(session, [doc.id]))[doc.id])
 
@@ -182,6 +184,7 @@ async def document_items(
     principal: Principal = Depends(docs_scope),
     session: AsyncSession = Depends(get_session),
 ) -> list[ItemOut]:
+    """Line items (item, qty, unit, rate, amount) taken from the document's tables."""
     doc = await _owned(document_id, principal, session)
     rows = await session.scalars(
         select(DocumentItem)

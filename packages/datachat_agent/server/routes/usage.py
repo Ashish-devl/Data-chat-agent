@@ -29,6 +29,7 @@ async def usage(
     principal: Principal = Depends(require_scope(Scope.ADMIN)),
     session: AsyncSession = Depends(get_session),
 ) -> Usage:
+    """Questions and model tokens this calendar month, with this account's limits."""
     start = month_start()
     requests, tokens = (
         await session.execute(
