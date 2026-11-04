@@ -3,6 +3,7 @@
     python -m eval.run_eval                   # load data, ask everything, write the report
     python -m eval.run_eval --resume          # continue where a previous run stopped
     python -m eval.run_eval --only doc-03,erp-14 --skip-load
+    python -m eval.run_eval --redo doc-03,erp-14  # ask these again, keep the other answers
 
 Uses the LLM_* settings from .env. Answers are saved after every question to
 eval/results/answers.json, so a run stopped by a provider's daily limit continues next time
@@ -126,6 +127,15 @@ def ask(dc, question: str, retries: int, wait: float) -> dict:
     raise AssertionError("unreachable")
 
 
+def model_line() -> str:
+    """Which model answered: scores belong to a model, not to DataChat Agent alone."""
+    from datachat_agent.config import get_settings
+
+    s = get_settings()
+    backups = f" (backups: {', '.join(s.fallback_models)})" if s.fallback_models else ""
+    return f"Model: {s.llm_model}{backups}."
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument(
@@ -137,6 +147,11 @@ def main() -> None:
     ap.add_argument("--skip-load", action="store_true", help="sample databases already loaded")
     ap.add_argument("--resume", action="store_true", help="keep earlier answers, ask the rest")
     ap.add_argument("--only", default="", help="comma-separated question ids")
+    ap.add_argument(
+        "--redo",
+        default="",
+        help="comma-separated question ids to ask again; every other saved answer is kept",
+    )
     ap.add_argument("--delay", type=float, default=4.0, help="seconds between questions")
     ap.add_argument("--retries", type=int, default=2)
     ap.add_argument("--retry-wait", type=float, default=60.0)
@@ -149,8 +164,13 @@ def main() -> None:
     RESULTS.mkdir(parents=True, exist_ok=True)
     answers_path = RESULTS / "answers.json"
     done: dict[str, dict] = {}
+    redo = {i for i in args.redo.split(",") if i}
+    if redo:
+        args.resume = True
     if args.resume and answers_path.exists():
         done = {r["id"]: r for r in json.loads(answers_path.read_text(encoding="utf-8"))}
+        for i in redo:
+            done.pop(i, None)
 
     if not args.skip_load and not args.resume:
         print("Loading sample databases ...")
@@ -196,7 +216,7 @@ def main() -> None:
     summary = scoring.summarise(results)
     report = (
         f"# Evaluation results\n\nRun {dt.date.today().isoformat()}, "
-        f"{len(results)} questions.\n\n{scoring.table(summary)}\n"
+        f"{len(results)} questions. {model_line()}\n\n{scoring.table(summary)}\n"
     )
     misses = [
         r for r in results if not all(v for k, v in r["grade"].items() if isinstance(v, bool))

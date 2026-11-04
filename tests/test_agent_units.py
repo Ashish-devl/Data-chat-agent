@@ -185,3 +185,75 @@ def test_reasoning_effort_is_passed_only_when_set(monkeypatch):
     monkeypatch.setenv("LLM_REASONING_EFFORT", "low")
     get_settings.cache_clear()
     assert get_chat_model().reasoning_effort == "low"
+
+
+# --- routing by document number -------------------------------------------------------------
+
+DOCS = [
+    "invoice_ATC-5502.pdf",
+    "challan_DC-3307.pdf",
+    "po_PO-26-27-4101.pdf",
+    "test_report_TR-2026-552.pdf",
+    "invoice_KD-2026-077.pdf",
+    "northwind_supplier_manual.pdf",
+]
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "How many line items are on Apex Trims invoice ATC-5502?",
+        "Which vehicle delivered challan DC-3307?",
+        "By when must purchase order PO/26-27/4101 be delivered?",
+        "Did the fabric in test report TR-2026-552 pass?",
+        "What is on invoice KD-2026-077?",
+    ],
+)
+def test_a_document_number_is_recognised(question):
+    from datachat_agent.agent.router import names_a_document
+
+    assert names_a_document(question, DOCS)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "How many orders did we ship in 2026?",
+        "Which buyers ordered more than 5000 pieces?",
+        "What does the Northwind manual say about cartons?",
+        "Show production order PRD-9999",
+    ],
+)
+def test_other_questions_are_not_mistaken_for_one(question):
+    from datachat_agent.agent.router import names_a_document
+
+    assert not names_a_document(question, DOCS)
+
+
+def test_router_adds_documents_when_the_model_picks_the_database():
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    from datachat_agent.agent.router import choose_route
+
+    llm = FakeListChatModel(responses=["database", "database"])
+    route, _ = asyncio.run(
+        choose_route(llm, "Which vehicle delivered challan DC-3307?", True, True, [], DOCS)
+    )
+    assert route == "both"
+    route, _ = asyncio.run(choose_route(llm, "How many buyers?", True, True, [], DOCS))
+    assert route == "database"
+
+
+def test_line_items_are_counted_for_the_model():
+    from datachat_agent.agent.cited_answer import line_item_summary
+
+    items = [
+        {"document": "a.pdf", "amount": 10.5},
+        {"document": "a.pdf", "amount": 4.25},
+        {"document": "b.pdf", "amount": None},
+        {"document": "a.pdf", "amount": 1},
+    ]
+    assert line_item_summary(items) == [
+        {"document": "a.pdf", "line_items": 3, "sum_of_amounts": 15.75},
+        {"document": "b.pdf", "line_items": 1, "sum_of_amounts": 0.0},
+    ]

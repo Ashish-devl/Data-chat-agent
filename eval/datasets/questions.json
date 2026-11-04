@@ -87,7 +87,7 @@
     {"id": "doc-22", "set": "erp", "kind": "documents", "question": "How many cartons are in the packing list for EXP/26/014 and what is the gross weight?", "expect": ["120", "1488"], "cite": [["packing_list_EXP-26-014.pdf", 1]]},
     {"id": "doc-23", "set": "erp", "kind": "documents", "question": "By when must purchase order PO/26-27/4101 be delivered?", "expect": [["30-08-2026", "30 August 2026", "August 30, 2026", "2026-08-30", "30/08/2026", "30th August"]], "cite": [["po_PO-26-27-4101.pdf", 1]]},
     {"id": "doc-24", "set": "erp", "kind": "documents", "question": "What is the value of purchase order PO/26-27/4101?", "expect": ["1515500"], "cite": [["po_PO-26-27-4101.pdf", 1]]},
-    {"id": "doc-25", "set": "erp", "kind": "documents", "question": "Did the fabric in test report TR-2026-552 pass, and if not why?", "expect": ["fail", "width"], "cite": [["test_report_TR-2026-552.pdf", 1]]},
+    {"id": "doc-25", "set": "erp", "kind": "documents", "question": "Did the fabric in test report TR-2026-552 pass, and if not why?", "expect": [["fail", "did not pass", "not passed"], "width"], "cite": [["test_report_TR-2026-552.pdf", 1]]},
     {"id": "doc-26", "set": "erp", "kind": "documents", "question": "What is the price of a Metal Zip 15 cm on the Apex Trims price list?", "expect": ["6.4"], "cite": [["apex_trims_price_list.pdf", 1]]},
     {"id": "doc-27", "set": "erp", "kind": "documents", "question": "What is the amount of credit note CN-0042 and why was it issued?", "expect": ["10950", "short"], "cite": [["credit_note_CN-0042.pdf", 1]]},
     {"id": "doc-28", "set": "erp", "kind": "documents", "question": "Which vehicle delivered challan DC-3307?", "expect": ["MH 04 AB 1234"], "cite": [["challan_DC-3307.pdf", 1]]},

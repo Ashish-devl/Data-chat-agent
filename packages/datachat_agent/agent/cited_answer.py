@@ -115,6 +115,22 @@ def _f(v) -> float | None:
     return float(v) if v is not None else None
 
 
+def line_item_summary(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Per document: how many line items were found and what their amounts add up to.
+
+    Tax, freight and total rows are not line items, so the sum is before those.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    for it in items:
+        row = out.setdefault(
+            it["document"], {"document": it["document"], "line_items": 0, "sum_of_amounts": 0.0}
+        )
+        row["line_items"] += 1
+        if it.get("amount") is not None:
+            row["sum_of_amounts"] = round(row["sum_of_amounts"] + it["amount"], 2)
+    return list(out.values())
+
+
 def build_cited_messages(
     question: str,
     passages: list[dict[str, Any]],
@@ -136,8 +152,13 @@ def build_cited_messages(
             payload["database_result"]["note"] = note
     payload["document_passages"] = passages
     payload["document_line_items"] = items
+    if items:
+        # Models miscount long lists, so the counts and sums are given rather than left to it.
+        payload["line_items_per_document"] = line_item_summary(items)
     if len(items) >= MAX_ITEMS_FOR_MODEL:
-        payload["line_items_note"] = f"Only the first {MAX_ITEMS_FOR_MODEL} line items are shown."
+        payload["line_items_note"] = (
+            f"Only the first {MAX_ITEMS_FOR_MODEL} line items are shown, and counted."
+        )
     text = json.dumps(payload, ensure_ascii=False, default=str).replace("</", "<\\/")
     messages = [SystemMessage(CITED_SYSTEM)]
     for q, a in history or []:

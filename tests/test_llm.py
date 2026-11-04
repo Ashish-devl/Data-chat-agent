@@ -102,3 +102,101 @@ def test_backup_models_do_not_get_reasoning_effort(monkeypatch):
     chain = get_chat_model()
     assert chain.runnable.reasoning_effort == "none"
     assert chain.fallbacks[0].reasoning_effort is None
+
+
+# --- quota-aware fallback chain -------------------------------------------------------------
+
+DAILY_429 = (
+    "Error code: 429 - [{'error': {'code': 429, 'message': 'You exceeded your current quota. "
+    "* Quota exceeded for metric: generate_content_free_tier_requests, limit: 20, model: m, "
+    "description: Generate content requests per day limit exceeded on Free Tier. "
+    "Please retry in 22h49m14.659s.', 'details': [{'quotaId': "
+    "'GenerateRequestsPerDayPerProjectPerModel-FreeTier'}, {'retryDelay': '82154s'}]}}]"
+)
+
+
+class Counting(FakeListChatModel):
+    """A fake model that can be told to fail, and counts its calls."""
+
+    fail_with: str | None = None
+    calls: int = 0
+    model_name: str = "fake"
+
+    def _call(self, *args, **kwargs):
+        self.calls += 1
+        if self.fail_with:
+            raise RuntimeError(self.fail_with)
+        return super()._call(*args, **kwargs)
+
+    async def _astream(self, *args, **kwargs):
+        self.calls += 1
+        if self.fail_with:
+            raise RuntimeError(self.fail_with)
+        async for chunk in super()._astream(*args, **kwargs):
+            yield chunk
+
+
+@pytest.fixture
+def chain():
+    from datachat_agent.core import llm as L
+
+    L._resting.clear()
+    main = Counting(responses=["main"], fail_with=DAILY_429, model_name="main")
+    backup = Counting(responses=["backup"], model_name="backup")
+    yield L.ModelChain(main, [backup]), main, backup
+    L._resting.clear()
+
+
+def test_quota_rest_reads_the_providers_delay():
+    from datachat_agent.core.llm import quota_rest_seconds
+
+    assert quota_rest_seconds(RuntimeError(DAILY_429)) == 82154
+    assert quota_rest_seconds(RuntimeError("429 rate limit, retry in 1m30s")) == 90
+    assert quota_rest_seconds(RuntimeError("Error code: 429 - Too many requests")) == 60
+    assert quota_rest_seconds(RuntimeError("Error code: 503 - overloaded")) is None
+    assert quota_rest_seconds(RuntimeError("Request timed out.")) is None
+
+
+def test_a_spent_model_is_skipped_until_its_quota_resets(chain):
+    llm, main, backup = chain
+    assert asyncio.run(llm.ainvoke("hi")).content == "backup"
+    assert asyncio.run(llm.ainvoke("hi")).content == "backup"
+    assert llm.invoke("hi").content == "backup"
+    assert main.calls == 1  # asked once, then left alone
+    assert backup.calls == 3
+
+
+def test_other_errors_do_not_bench_a_model(chain):
+    llm, main, backup = chain
+    main.fail_with = "Error code: 503 - overloaded"
+    llm.invoke("hi")
+    llm.invoke("hi")
+    assert main.calls == 2
+
+
+def test_a_rested_model_is_used_again(chain):
+    from datachat_agent.core import llm as L
+
+    llm, main, backup = chain
+    llm.invoke("hi")
+    main.fail_with = None
+    L._resting.clear()  # the quota reset
+    assert llm.invoke("hi").content == "main"
+
+
+def test_when_every_model_is_resting_they_are_still_tried(chain):
+    llm, main, backup = chain
+    backup.fail_with = DAILY_429
+    with pytest.raises(RuntimeError):
+        llm.invoke("hi")
+    backup.fail_with = None
+    assert llm.invoke("hi").content == "backup"
+
+
+def test_streaming_switches_models_before_the_first_chunk(chain):
+    llm, main, backup = chain
+
+    async def collect():
+        return "".join([c.content async for c in llm.astream("hi")])
+
+    assert asyncio.run(collect()) == "backup"

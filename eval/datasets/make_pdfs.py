@@ -9,6 +9,7 @@ Usage:
 import sys
 from pathlib import Path
 
+from reportlab import rl_config
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
@@ -21,6 +22,10 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
+
+# The same bytes on every run (no creation time or random file id), so the same PDF is
+# recognised as already uploaded instead of being stored twice.
+rl_config.invariant = 1
 
 STYLES = getSampleStyleSheet()
 GRID = TableStyle(

@@ -54,8 +54,11 @@ class SQLRequest:
 
 
 PARTIAL_RULE = """- The question may also ask about uploaded documents (searched separately).
-  Write SQL for the parts the schema can answer and ignore the rest. Use {no_sql} only when
-  no part of the question can be answered from the schema.
+  Write SQL only for the part the schema can answer, exactly as if that part were asked on
+  its own. Do not add joins or columns to estimate the documents' part (an invoice's total,
+  a price on a price list, a date in a contract): those figures come from the documents, and
+  extra joins change your counts. Use {no_sql} only when no part of the question can be
+  answered from the schema.
 """
 
 
@@ -90,13 +93,33 @@ def build_messages(req: SQLRequest) -> list[BaseMessage]:
 _FENCE = re.compile(r"```(?:sql)?\s*(.*?)```", re.IGNORECASE | re.DOTALL)
 
 
+_NO_SQL_ANYWHERE = re.compile(r"NO_SQL\s*:?\**\s*(.*)", re.IGNORECASE | re.DOTALL)
+# Any statement is passed on, so the validator can refuse a write with a clear reason.
+_STARTS_LIKE_SQL = re.compile(
+    r"^\(*\s*(select|with|insert|update|delete|merge|drop|alter|create|truncate|grant|revoke|"
+    r"call|exec|execute|copy|show|explain|pragma|attach|vacuum)\b",
+    re.IGNORECASE,
+)
+_LEADING_COMMENTS = re.compile(r"^(\s*(--[^\n]*\n|/\*.*?\*/))*\s*", re.DOTALL)
+
+
 def parse_response(text: str) -> GeneratedSQL:
+    """The SQL in the reply, or the reason the model gave for not writing any.
+
+    Models do not always follow the format: the refusal may come in a code block, in bold, or
+    after a sentence. Anything that is not a query is treated as a refusal, never run as SQL.
+    """
     stripped = text.strip()
-    if stripped.upper().startswith(NO_SQL):
-        return GeneratedSQL(sql=None, reason=stripped[len(NO_SQL) :].strip() or None, raw=text)
     match = _FENCE.search(stripped)
     sql = (match.group(1) if match else stripped).strip().rstrip(";").strip()
-    return GeneratedSQL(sql=sql or None, raw=text, reason=None if sql else "empty response")
+    if _STARTS_LIKE_SQL.match(_LEADING_COMMENTS.sub("", sql, count=1)):
+        return GeneratedSQL(sql=sql, raw=text)
+    if refusal := _NO_SQL_ANYWHERE.search(stripped):
+        reason = refusal.group(1).strip().strip("`*").strip()
+        return GeneratedSQL(sql=None, reason=reason or None, raw=text)
+    if not sql:
+        return GeneratedSQL(sql=None, raw=text, reason="empty response")
+    return GeneratedSQL(sql=None, raw=text, reason=sql[:200])
 
 
 async def generate_sql(llm: BaseChatModel | Runnable, req: SQLRequest) -> GeneratedSQL:

@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     # Thinking models (Gemini 3, OpenAI o-series) spend time and tokens reasoning first.
     # e.g. "low" or "none" makes them faster and cheaper; empty = the provider's default.
     llm_reasoning_effort: str = ""
+    # Start the database query while the question is still being routed. Answers arrive about
+    # one model call sooner; questions that turn out to be about documents only spend the
+    # tokens of one unused SQL draft. false = one step after another.
+    parallel_steps: bool = True
 
     # "local" runs on CPU with no key; "hash" is a tiny fake for tests only.
     embed_provider: Literal["local", "openai_compatible", "hash"] = "local"

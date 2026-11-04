@@ -1,5 +1,6 @@
 """The agent: route -> (database and/or documents) -> answer, as a LangGraph graph."""
 
+import asyncio
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -13,10 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from datachat_agent.agent.answer_plan import plan_answer, run_plan
-from datachat_agent.agent.doc_planner import plan_items
+from datachat_agent.agent.doc_planner import ItemPlan, plan_items
 from datachat_agent.agent.knowledge import Knowledge, load_knowledge
 from datachat_agent.agent.router import Route, choose_route
 from datachat_agent.agent.sessions import Turn
+from datachat_agent.config import get_settings
 from datachat_agent.core.embeddings import Embedder
 from datachat_agent.core.pii import PiiMasker
 from datachat_agent.docs.search import ItemRow, Passage, find_items, search_passages
@@ -48,6 +50,8 @@ class AgentState(TypedDict, total=False):
     tokens: int
     error: str | None
     llm_unavailable: bool
+    has_documents: bool
+    item_plan: ItemPlan | None
 
 
 @dataclass
@@ -90,17 +94,17 @@ async def _table_names(deps: AgentDeps) -> list[str]:
     return list(rows)
 
 
-async def route_node(state: AgentState, config: RunnableConfig) -> AgentState:
-    deps = _deps(config)
-    has_db = deps.connection is not None
-    has_docs = await _has_documents(deps)
-    tables = await _table_names(deps) if has_db and has_docs else None
-    route, tokens = await choose_route(deps.llm, state["question"], has_db, has_docs, tables)
-    return {"route": route, "tokens": state.get("tokens", 0) + tokens}
+async def _document_names(deps: AgentDeps) -> list[str]:
+    rows = await deps.session.scalars(
+        select(Document.filename)
+        .where(Document.tenant_id == deps.tenant_id, Document.status == "ready")
+        .order_by(Document.created_at.desc())
+        .limit(200)
+    )
+    return list(rows)
 
 
-async def database_node(state: AgentState, config: RunnableConfig) -> AgentState:
-    deps = _deps(config)
+async def _query_database(state: AgentState, deps: AgentDeps, partial: bool) -> SQLAnswer:
     question = state["question"]
     previous = deps.history[-1].question if deps.history else ""
     base_text = f"{previous}\n{question}" if previous else question
@@ -110,7 +114,7 @@ async def database_node(state: AgentState, config: RunnableConfig) -> AgentState
     # Business terms named in the question point retrieval at the right tables.
     retrieval_text = "\n".join([base_text, *knowledge.matched_definitions])
 
-    result = await answer_with_sql(
+    return await answer_with_sql(
         deps.session,
         deps.connection,
         question,
@@ -121,14 +125,82 @@ async def database_node(state: AgentState, config: RunnableConfig) -> AgentState
         examples=knowledge.examples,
         history=[(t.question, t.sql) for t in deps.history if t.sql],
         retrieval_text=retrieval_text,
-        partial=state.get("route") == "both",
+        partial=partial,
         masker=deps.masker,
     )
+
+
+def _sql_update(state: AgentState, result: SQLAnswer) -> AgentState:
     return {
         "sql": result,
         "tokens": state.get("tokens", 0) + result.tokens,
         "llm_unavailable": result.llm_unavailable,
     }
+
+
+async def route_node(state: AgentState, config: RunnableConfig) -> AgentState:
+    """Choose where to look. With PARALLEL_STEPS, also start the work the route will need.
+
+    The routing call, the document planning call and the database query do not depend on each
+    other, so they run at the same time: the answer comes about one model call sooner. Only
+    the database work uses the session; the two model calls do not touch it.
+    """
+    deps = _deps(config)
+    question = state["question"]
+    has_db = deps.connection is not None
+    has_docs = await _has_documents(deps)
+    tables = await _table_names(deps) if has_db and has_docs else None
+    names = await _document_names(deps) if has_db and has_docs else None
+    routing = choose_route(deps.llm, question, has_db, has_docs, tables, names)
+
+    if not (get_settings().parallel_steps and has_db and has_docs):
+        route, tokens = await routing
+        return {
+            "route": route,
+            "has_documents": has_docs,
+            "tokens": state.get("tokens", 0) + tokens,
+        }
+
+    # The SQL is drafted before the route is known, so it may only cover part of a question
+    # that also needs the documents.
+    (route, tokens), plan, sql = await asyncio.gather(
+        routing, plan_items(deps.llm, question), _query_database(state, deps, partial=True)
+    )
+    update: AgentState = {
+        "route": route,
+        "has_documents": has_docs,
+        "item_plan": plan,
+        "tokens": state.get("tokens", 0) + tokens + plan.tokens + sql.tokens,
+    }
+    if route in ("database", "both"):
+        update["sql"] = sql
+        update["llm_unavailable"] = sql.llm_unavailable
+    return update
+
+
+def _found_nothing(result: SQLAnswer | None) -> bool:
+    if result is None or result.llm_unavailable:
+        return False
+    if result.cannot_answer or result.error:
+        return True
+    return result.result is not None and not result.result.rows
+
+
+async def database_node(state: AgentState, config: RunnableConfig) -> AgentState:
+    deps = _deps(config)
+    update: AgentState = {}
+    if state.get("sql") is None:
+        result = await _query_database(state, deps, partial=state.get("route") == "both")
+        update = _sql_update(state, result)
+    # Nothing in the tables: the answer may still be in a document (a purchase order that was
+    # only uploaded, a supplier's own invoice number), so read those before saying so.
+    if (
+        state.get("route") == "database"
+        and state.get("has_documents")
+        and _found_nothing(update.get("sql", state.get("sql")))
+    ):
+        update["route"] = "both"
+    return update
 
 
 async def documents_node(state: AgentState, config: RunnableConfig) -> AgentState:
@@ -140,7 +212,8 @@ async def documents_node(state: AgentState, config: RunnableConfig) -> AgentStat
     vector = await run_in_threadpool(deps.embedder.embed_query, search_text)
     passages = await search_passages(deps.session, deps.tenant_id, search_text, vector)
 
-    plan = await plan_items(deps.llm, question)
+    plan = state.get("item_plan") or await plan_items(deps.llm, question)
+    already_counted = state.get("item_plan") is not None
     items = []
     if plan.need_items:
         items = await find_items(deps.session, deps.tenant_id, plan.document, plan.item)
@@ -151,7 +224,7 @@ async def documents_node(state: AgentState, config: RunnableConfig) -> AgentStat
     return {
         "documents": passages,
         "items": items,
-        "tokens": state.get("tokens", 0) + plan.tokens,
+        "tokens": state.get("tokens", 0) + (0 if already_counted else plan.tokens),
     }
 
 

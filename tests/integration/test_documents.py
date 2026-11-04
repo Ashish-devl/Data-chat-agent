@@ -375,13 +375,63 @@ def test_question_using_database_and_documents(client, pdfs, use_llm):
     assert "database_result" in final and "document_line_items" in final
 
 
-def test_router_sends_document_questions_away_from_sql(client, pdfs, use_llm):
+def test_router_sends_document_questions_away_from_sql(client, pdfs, use_llm, monkeypatch):
+    monkeypatch.setenv("PARALLEL_STEPS", "false")
+    get_settings.cache_clear()
     headers = make_tenant(client)
     conn = scanned_connection(client, headers, PG_READONLY)
     upload_all(client, headers, pdfs, ["northwind_supplier_manual.pdf"])
     llm = use_llm("documents", plan(), "Seal cartons with brown tape in an H pattern [1].")
     body = ask(client, headers, "How should cartons be sealed?", connection_id=conn["id"]).json()
     assert body["route"] == "documents" and body["sql"] is None and len(llm.seen) == 3
+    get_settings.cache_clear()
+
+
+def test_parallel_sql_draft_is_dropped_for_a_document_question(client, pdfs, use_llm):
+    headers = make_tenant(client)
+    conn = scanned_connection(client, headers, PG_READONLY)
+    upload_all(client, headers, pdfs, ["northwind_supplier_manual.pdf"])
+    llm = use_llm(
+        "documents",
+        sql("SELECT COUNT(*) FROM buyers"),
+        plan(),
+        "Seal cartons with brown tape in an H pattern [1].",
+    )
+    body = ask(client, headers, "How should cartons be sealed?", connection_id=conn["id"]).json()
+    assert body["route"] == "documents" and body["sql"] is None and body["rows"] == []
+    assert len(llm.seen) == 4 and not llm.responses
+    assert body["tokens"] == 40  # the unused draft still counts
+
+
+def test_empty_database_result_falls_back_to_documents(client, pdfs, use_llm):
+    headers = make_tenant(client)
+    conn = scanned_connection(client, headers, PG_READONLY)
+    upload_all(client, headers, pdfs, ["invoice_SGK-1187.pdf"])
+    use_llm(
+        "database",
+        sql("SELECT name FROM suppliers WHERE name = 'Nobody'"),
+        plan(),
+        "Shree Ganesh Knits' invoice totals INR 525,450 [1].",
+    )
+    body = ask(
+        client, headers, "What does the Shree Ganesh invoice total?", connection_id=conn["id"]
+    ).json()
+    assert body["route"] == "both"
+    assert body["citations"] and body["citations"][0]["filename"] == "invoice_SGK-1187.pdf"
+
+
+def test_a_document_number_in_the_question_adds_the_documents(client, pdfs, use_llm):
+    headers = make_tenant(client)
+    conn = scanned_connection(client, headers, PG_READONLY)
+    upload_all(client, headers, pdfs, ["invoice_SGK-1187.pdf"])
+    use_llm(
+        "database",
+        sql("SELECT COUNT(*) AS n FROM buyers"),
+        plan(),
+        "Invoice SGK/1187 totals INR 525,450 [1].",
+    )
+    body = ask(client, headers, "What is invoice SGK/1187 worth?", connection_id=conn["id"]).json()
+    assert body["route"] == "both" and body["citations"]
 
 
 # --- tools and background jobs ------------------------------------------------------------

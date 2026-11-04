@@ -98,8 +98,8 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [x] E1 Sample databases: garment mini-ERP (Postgres + MySQL, made up) and Chinook (public, MIT, 11 tables; pinned v1.4.5 download checked by SHA-256, `eval/datasets/chinook.py`)
 - [x] E2 20 sample PDFs (made up): 9 invoices (incl. a 2-page table, GST rows, a USD export invoice), 2 buyer manuals, a supply contract, a PO, a packing list, a test report, a credit note, a delivery challan, 2 price lists, an image-only scan
 - [x] E3 100 questions (`eval/datasets/questions.json`): 60 database (40 ERP + 20 Chinook), 30 documents, 10 both; 7 of them unanswerable. Every correct query checked to return rows with no tie for first place
-- [~] E4 `python -m eval.run_eval`: loads data, asks all 100 through the real model, grades, saves after each question, stops cleanly on a spent daily quota and continues with `--resume`; scoring unit-tested. **Full run waiting for Gemini's daily quota**
-- [ ] E5 Targets: SQL accuracy 80%, schema recall 95%, document accuracy 85%, citation precision 90%, refusal 90%, median latency < 4 s (note: free Gemini took 3–21 s per question on 2026-10-21; the < 4 s target needs a faster model or the paid tier)
+- [x] E4 `python -m eval.run_eval`: loads data, asks all 100 through the real model, grades, saves after each question, stops cleanly on a spent daily quota and continues with `--resume`; `--redo ids` asks chosen questions again and keeps the rest; the report names the model. First full run 2026-11-04 (free Gemini): SQL 95%, schema 100%, documents 87%, citations 100%, refusals 86%, median 9.3 s
+- [~] E5 Targets: SQL accuracy 80%, schema recall 95%, document accuracy 85%, citation precision 90%, refusal 90%, median latency < 4 s. After the fixes below, re-asking the 9 misses (2026-11-04): all accuracy targets met (SQL 98%, documents 94%, citations 97%, refusals 100%); those answers took 1.9–4.8 s. **Clean full re-run with fresh quota still to do, for the final scores and latency**
 - [x] E6 Executor tests: timeout fires, LIMIT applied, row filter applied, write fails on a read-only user and inside the read-only transaction even for a writer
 - [x] E7 Tenancy tests: keys, connections (every route), schema items, terms, examples, sessions and documents (every route); same file or session key in two tenants stays separate
 - [x] E8 Auth tests: revoked key (every route), wrong scope, publishable key limits (website check, ask-only, no user_context, private sessions, own feedback only), MCP key checks
@@ -107,6 +107,12 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 
 - [x] E10 PDF line items: units in brackets no longer confuse columns ("Unit Price (USD)" is a rate); tax, discount and freight rows are skipped (found by the new sample PDFs)
 - [x] E11 Backup models no longer get `LLM_REASONING_EFFORT` (Gemini 3.5 Flash Lite rejects it)
+- [x] E12 Spent quotas are skipped: a model that answers "quota used up" is left alone until the provider says it resets (it was asked twice on every call, adding ~5 s per answer once the free daily quota ran out)
+- [x] E13 Parallel steps (`PARALLEL_STEPS`, on by default): routing, document planning and the database query run at the same time, about one model call sooner
+- [x] E14 Routing: the router sees the uploaded file names, and a question naming a document's number (invoice ATC-5502, challan DC-3307) also reads the documents; an empty database result falls back to the documents
+- [x] E15 A refusal from the SQL model in any wrapping (code block, bold, after a sentence) is a polite "can't answer", never run as SQL
+- [x] E16 Questions that need both sources: the SQL covers only the database part (extra joins had multiplied counts: 15 POs instead of 7)
+- [x] E17 Line-item counts and sums per document are given to the model (it counted 31 of 40 items); sample PDFs are byte-for-byte reproducible so re-runs do not upload them twice
 
 ## Week 8 — Launch (checkpoint: evaluation targets met)
 - [x] L1 Admin console (`console/`, React 19 + Vite, 78 KB gzipped): overview, databases (test, scan, hide/describe columns, business terms, worked examples), documents (upload, status, line items, download, delete), try-it chat (streaming), query log (search, rating and error filters, SQL and answer), API keys (secret and website keys, shown once, widget snippet), users, account; members see only their pages; served at `/console` by every server; 7 tests
