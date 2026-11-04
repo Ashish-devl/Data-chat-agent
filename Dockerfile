@@ -8,4 +8,5 @@ COPY packages ./packages
 RUN pip install --no-cache-dir .
 
 EXPOSE 8000
-CMD ["sh", "-c", "datachat-agent init-db && datachat-agent serve --host 0.0.0.0 --port 8000"]
+# Hosts such as Railway set PORT; the worker service overrides this command.
+CMD ["sh", "-c", "datachat-agent init-db && datachat-agent serve --host 0.0.0.0 --port ${PORT:-8000}"]

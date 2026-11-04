@@ -168,7 +168,7 @@ datachat-agent ask-sql <connection id> "Which production orders are delayed?"
 Running it as a service for other companies? Set `BLOCK_PRIVATE_NETWORKS=true` so nobody can
 point a connection at your own internal network.
 
-Full endpoint reference: [docs/API.md](docs/API.md).
+Full endpoint reference: [docs/API.md](docs/API.md). Hosting it: [docs/DEPLOY.md](docs/DEPLOY.md).
 
 Per-user row filters (`"row_filters": {"orders": "company_id = :user_company"}`) are wrapped around
 every use of the table; a question without the user's context is refused.
