@@ -60,7 +60,8 @@ def test_model_failure_becomes_clear_error():
     ("message", "expected"),
     [
         ("Request timed out.", "did not respond in time"),
-        ("Error code: 429 - rate limit", "rate limit"),
+        ("Error code: 429 - rate limit", "try again in a minute"),
+        ("Error code: 429 - Generate content requests per day limit exceeded", "daily quota"),
         ("Error code: 503 - high demand", "overloaded"),
         ("Error code: 401 - invalid api key", "rejected the API key"),
         ("Error code: 404 - model not found", "Check LLM_MODEL"),

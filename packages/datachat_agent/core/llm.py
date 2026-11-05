@@ -206,8 +206,10 @@ def describe_llm_error(e: Exception) -> str:
     text = f"{type(e).__name__}: {e}".lower()
     if "timeout" in text or "timed out" in text:
         return "The language model did not respond in time. Please try again."
+    if "per day" in text or "perday" in text:
+        return "The language model's daily quota is used up. Please try again tomorrow."
     if "429" in text or "rate" in text or "quota" in text:
-        return "The language model's rate limit or quota was reached. Please try again later."
+        return "The language model's rate limit was reached. Please try again in a minute."
     if "503" in text or "overloaded" in text or "high demand" in text or "unavailable" in text:
         return "The language model is overloaded right now. Please try again shortly."
     if "401" in text or "403" in text or "api key" in text or "permission" in text:

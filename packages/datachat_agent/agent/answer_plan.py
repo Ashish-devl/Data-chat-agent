@@ -66,7 +66,9 @@ def table_plan(
         return {
             "answer": plain_summary(rows, count, truncated) + f" ({describe_llm_error(e)})",
             "chart": chart_hint(cols, rows),
-            "error": None,
+            # The data is shown, but the written answer is missing: say why, so a caller
+            # knows to ask again.
+            "error": describe_llm_error(e),
             "fallback": True,
         }
 
@@ -124,7 +126,7 @@ def cited_plan(
             "answer": text,
             "citations": [s.as_citation() for s in top],
             "chart": None,
-            "error": None,
+            "error": describe_llm_error(e),
             "fallback": True,
         }
 

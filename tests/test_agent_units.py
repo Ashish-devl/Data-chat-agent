@@ -257,3 +257,24 @@ def test_line_items_are_counted_for_the_model():
         {"document": "a.pdf", "line_items": 3, "sum_of_amounts": 15.75},
         {"document": "b.pdf", "line_items": 1, "sum_of_amounts": 0.0},
     ]
+
+
+def test_a_fallback_answer_says_why_it_is_incomplete():
+    """The data is still shown, but the error tells callers the model did not write it."""
+    from datachat_agent.agent.answer_plan import plan_answer, run_plan
+    from datachat_agent.sql.executor import QueryResult
+    from datachat_agent.sql.pipeline import SQLAnswer
+
+    sql = SQLAnswer(
+        question="How many buyers?",
+        sql="SELECT COUNT(*) AS total FROM buyers",
+        result=QueryResult(
+            columns=["total"], rows=[{"total": 6}], row_count=1, truncated=False, elapsed_ms=1
+        ),
+    )
+    state = {"question": "How many buyers?", "route": "database", "sql": sql}
+    out = asyncio.run(
+        run_plan(plan_answer(state, []), ScriptedChat([RuntimeError("503 overloaded")]))
+    )
+    assert out["answer"].startswith("Result: total: 6.")
+    assert out["fallback"] and "overloaded" in out["error"]

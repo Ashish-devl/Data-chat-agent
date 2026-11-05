@@ -119,7 +119,7 @@ def ask(dc, question: str, retries: int, wait: float) -> dict:
                 "error": a.error,
                 "attempts": attempt + 1,
             }
-        if "quota" in a.error:
+        if "daily quota" in a.error:
             # A daily quota does not come back in a minute: stop and resume another time.
             raise QuotaExhausted(a.error)
         print(f"    model unavailable ({a.error}); waiting {wait:.0f}s", flush=True)
@@ -152,8 +152,13 @@ def main() -> None:
         default="",
         help="comma-separated question ids to ask again; every other saved answer is kept",
     )
+    ap.add_argument(
+        "--results",
+        default=str(RESULTS),
+        help="folder for answers.json and the summary (e.g. a separate latency sample)",
+    )
     ap.add_argument("--delay", type=float, default=4.0, help="seconds between questions")
-    ap.add_argument("--retries", type=int, default=2)
+    ap.add_argument("--retries", type=int, default=4)
     ap.add_argument("--retry-wait", type=float, default=60.0)
     args = ap.parse_args()
 
@@ -161,8 +166,9 @@ def main() -> None:
     if args.only:
         wanted = set(args.only.split(","))
         questions = [q for q in questions if q["id"] in wanted]
-    RESULTS.mkdir(parents=True, exist_ok=True)
-    answers_path = RESULTS / "answers.json"
+    results_dir = Path(args.results)
+    results_dir.mkdir(parents=True, exist_ok=True)
+    answers_path = results_dir / "answers.json"
     done: dict[str, dict] = {}
     redo = {i for i in args.redo.split(",") if i}
     if redo:
@@ -227,8 +233,8 @@ def main() -> None:
             failed = ", ".join(k for k, v in r["grade"].items() if v is False)
             lines.append(f"- **{r['id']}** {r['question']} — {failed}")
         report += "\n## Misses\n\n" + "\n".join(lines) + "\n"
-    (RESULTS / "summary.md").write_text(report, encoding="utf-8")
-    (RESULTS / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
+    (results_dir / "summary.md").write_text(report, encoding="utf-8")
+    (results_dir / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     print("\n" + report)
 
 
