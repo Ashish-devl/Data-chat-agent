@@ -1,0 +1,38 @@
+{
+ "sql_accuracy": {
+  "value": 0.9846153846153847,
+  "n": 65,
+  "target": 0.8,
+  "met": true
+ },
+ "schema_recall": {
+  "value": 1.0,
+  "n": 65,
+  "target": 0.95,
+  "met": true
+ },
+ "document_accuracy": {
+  "value": 1.0,
+  "n": 38,
+  "target": 0.85,
+  "met": true
+ },
+ "citation_precision": {
+  "value": 1.0,
+  "n": 38,
+  "target": 0.9,
+  "met": true
+ },
+ "refusal_correctness": {
+  "value": 1.0,
+  "n": 7,
+  "target": 0.9,
+  "met": true
+ },
+ "median_latency_s": {
+  "value": 8.956,
+  "n": 100,
+  "target": 4.0,
+  "met": false
+ }
+}

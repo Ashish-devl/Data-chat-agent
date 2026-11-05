@@ -302,16 +302,24 @@ need both. Run them against your configured model:
 ```bash
 python -m eval.run_eval            # loads the sample data, asks everything, writes eval/results/
 python -m eval.run_eval --resume   # continue after a provider's daily limit
+python -m eval.run_eval --redo erp-15,doc-20   # ask some again, keep the rest
 ```
 
-| Metric | Target |
-| --- | --- |
-| SQL execution accuracy (rows match the correct query) | 80% |
-| Schema retrieval recall (needed tables shown to the model) | 95% |
-| Document answer accuracy (required facts present) | 85% |
-| Citation precision (cited page holds the fact) | 90% |
-| Refusal correctness ("I don't know" when the data has no answer) | 90% |
-| Median latency | under 4 s |
+Results on 2026-11-05 with free Google Gemini (Gemini 3.6 Flash, backups 3.5 Flash and
+3.5 Flash Lite), all 100 questions ([eval/results/summary.md](eval/results/summary.md)):
+
+| Metric | Result | Target |
+| --- | --- | --- |
+| SQL execution accuracy (rows match the correct query) | **98%** | 80% |
+| Schema retrieval recall (needed tables shown to the model) | **100%** | 95% |
+| Document answer accuracy (required facts present) | **100%** | 85% |
+| Citation precision (cited page holds the fact) | **100%** | 90% |
+| Refusal correctness ("I don't know" when the data has no answer) | **100%** | 90% |
+| Median latency | 9.0 s (not met) | under 4 s |
+
+Latency is mostly the free model service: a quarter of the answers took under 4.5 s, the rest
+waited on Gemini's free-tier limits (20 requests a day for 3.6 Flash, a few per minute) or on
+"overloaded" replies. Scores belong to the model used; run the evaluation with yours.
 
 Answers marked wrong in production can be added as new test questions:
 `datachat-agent export-feedback <tenant id> --out review.json`.

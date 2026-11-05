@@ -31,3 +31,4 @@ uploads/
 
 # Evaluation output (committed only for published runs)
 eval/results/answers.json
+eval/results/*/
