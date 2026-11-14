@@ -278,3 +278,23 @@ def test_a_fallback_answer_says_why_it_is_incomplete():
     )
     assert out["answer"].startswith("Result: total: 6.")
     assert out["fallback"] and "overloaded" in out["error"]
+
+
+def test_time_limit_is_shared_by_every_model_call():
+    import time
+
+    from langchain_core.runnables import RunnableLambda
+
+    from datachat_agent.agent.graph import _TimeLimit
+
+    async def slow(_):
+        await asyncio.sleep(1)
+        return "late"
+
+    llm = _TimeLimit(RunnableLambda(lambda _: "ok", afunc=slow), time.monotonic() + 0.2)
+    with pytest.raises(TimeoutError):
+        asyncio.run(llm.ainvoke("first"))
+    started = time.monotonic()
+    with pytest.raises(TimeoutError):  # no time left: fails at once, without waiting
+        asyncio.run(llm.ainvoke("second"))
+    assert time.monotonic() - started < 0.1

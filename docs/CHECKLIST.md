@@ -114,6 +114,7 @@ reviewing it. v1 is done only when every box is ticked. Each week ends by updati
 - [x] E16 Questions that need both sources: the SQL covers only the database part (extra joins had multiplied counts: 15 POs instead of 7)
 - [x] E17 Line-item counts and sums per document are given to the model (it counted 31 of 40 items); sample PDFs are byte-for-byte reproducible so re-runs do not upload them twice
 - [x] E18 Errors tell a spent daily quota ("try again tomorrow") from a per-minute limit ("try again in a minute"); an answer the model could not write (data or pages shown instead) carries the reason in `error`; run_eval waits out per-minute limits
+- [x] E19 Time limit per question (`ASK_TIMEOUT_SECONDS`, default 90): found while taking screenshots, when one question waited 199 s on a busy free model. Only model calls are cut short (a database query is never cancelled half-way); the user gets "did not respond in time, please try again"
 
 ## Week 8 — Launch (checkpoint: evaluation targets met)
 - [x] L1 Admin console (`console/`, React 19 + Vite, 78 KB gzipped): overview, databases (test, scan, hide/describe columns, business terms, worked examples), documents (upload, status, line items, download, delete), try-it chat (streaming), query log (search, rating and error filters, SQL and answer), API keys (secret and website keys, shown once, widget snippet), users, account; members see only their pages; served at `/console` by every server; 7 tests

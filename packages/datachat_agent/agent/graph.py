@@ -3,7 +3,8 @@
 import asyncio
 import time
 import uuid
-from dataclasses import dataclass, field
+from collections.abc import AsyncIterator
+from dataclasses import dataclass, field, replace
 from typing import Any, TypedDict
 
 from langchain_core.language_models import BaseChatModel
@@ -274,17 +275,59 @@ _GRAPH = build_graph()
 _GATHER = build_graph(with_answer=False)
 
 
+class _TimeLimit(Runnable):
+    """The model, but every call must finish by one deadline for the whole question.
+
+    Only model calls are cut short. Database work is never cancelled half-way (that can leave
+    a connection broken); once the time is up, each remaining model call fails at once as
+    "did not respond in time", and the usual error handling finishes the answer.
+    """
+
+    def __init__(self, inner: Any, deadline: float) -> None:
+        self.inner = inner
+        self.deadline = deadline
+
+    def _left(self) -> float:
+        left = self.deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("Request timed out: the question's time limit was reached.")
+        return left
+
+    def invoke(self, input: Any, config: RunnableConfig | None = None, **kwargs: Any) -> Any:
+        self._left()
+        return self.inner.invoke(input, config, **kwargs)
+
+    async def ainvoke(self, input: Any, config: RunnableConfig | None = None, **kwargs: Any) -> Any:
+        left = self._left()  # before starting the call, so a spent budget starts nothing
+        return await asyncio.wait_for(self.inner.ainvoke(input, config, **kwargs), left)
+
+    async def astream(
+        self, input: Any, config: RunnableConfig | None = None, **kwargs: Any
+    ) -> AsyncIterator[Any]:
+        async with asyncio.timeout(self._left()):
+            async for chunk in self.inner.astream(input, config, **kwargs):
+                yield chunk
+
+
+def with_time_limit(deps: AgentDeps) -> AgentDeps:
+    """A copy of deps whose model calls share ASK_TIMEOUT_SECONDS."""
+    deadline = time.monotonic() + get_settings().ask_timeout_seconds
+    return replace(deps, llm=_TimeLimit(deps.llm, deadline))
+
+
 async def gather(question: str, deps: AgentDeps) -> AgentState:
     """Route and fetch data, without writing the answer (the caller streams it)."""
     return await _GATHER.ainvoke(
-        {"question": question, "tokens": 0}, config={"configurable": {"deps": deps}}
+        {"question": question, "tokens": 0},
+        config={"configurable": {"deps": with_time_limit(deps)}},
     )
 
 
 async def run_agent(question: str, deps: AgentDeps) -> AgentResult:
     started = time.perf_counter()
     state: AgentState = await _GRAPH.ainvoke(
-        {"question": question, "tokens": 0}, config={"configurable": {"deps": deps}}
+        {"question": question, "tokens": 0},
+        config={"configurable": {"deps": with_time_limit(deps)}},
     )
     return AgentResult(
         question=question,

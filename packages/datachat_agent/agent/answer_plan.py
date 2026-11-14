@@ -140,11 +140,12 @@ def plan_answer(
     passages = state.get("documents") or []
     items = state.get("items") or []
 
+    if state.get("llm_unavailable"):
+        error = (sql.error if sql else None) or state.get("error")
+        error = error or "The language model is unavailable."
+        return AnswerPlan(fixed={"answer": error, "chart": None, "error": error})
     if state["route"] == "none":
         return AnswerPlan(fixed={"answer": NO_SOURCE, "chart": None, "error": None})
-    if state.get("llm_unavailable"):
-        error = sql.error if sql else "The language model is unavailable."
-        return AnswerPlan(fixed={"answer": error, "chart": None, "error": error})
 
     table = None
     if sql is not None and sql.result is not None:

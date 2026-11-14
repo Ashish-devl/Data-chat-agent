@@ -413,3 +413,38 @@ def test_tools_respect_hidden_items_and_safety(client, admin):
     assert "Only SELECT" in delete["error"]
     assert "not available" in hidden_table["error"]
     assert docs["results"] == []
+
+
+def _slow_model(seconds: float):
+    import asyncio
+
+    from langchain_core.runnables import RunnableLambda
+
+    async def _wait(_):
+        await asyncio.sleep(seconds)
+        return "too late"
+
+    return RunnableLambda(lambda _: "too late", afunc=_wait)
+
+
+def test_a_question_that_takes_too_long_gets_a_try_again(client, admin, monkeypatch):
+    from datachat_agent.config import get_settings
+
+    conn = scanned_connection(client, admin, PG_READONLY)
+    monkeypatch.setenv("ASK_TIMEOUT_SECONDS", "0.5")
+    get_settings.cache_clear()
+    client.app.dependency_overrides[llm_dependency] = lambda: _slow_model(3)
+    try:
+        r = ask(client, admin, "How many buyers?", connection_id=conn["id"])
+        assert r.status_code == 503 and "did not respond in time" in r.json()["error"]
+        log = query_log(client, r.json()["query_id"])
+        assert "did not respond in time" in log.error and log.latency_ms < 3000
+
+        r = client.post(
+            "/v1/ask/stream",
+            headers=admin,
+            json={"question": "How many buyers?", "connection_id": conn["id"]},
+        )
+        assert "did not respond in time" in r.text and "event: done" in r.text
+    finally:
+        client.app.dependency_overrides.pop(llm_dependency, None)

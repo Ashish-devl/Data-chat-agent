@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     llm_model: str = ""
     # Free tiers can be slow or overloaded; never let one call hang a request.
     llm_timeout_seconds: float = 30
+    # The most one question may take, all model calls and retries included. A busy free model
+    # can otherwise keep a user waiting for minutes; after this they are asked to try again.
+    ask_timeout_seconds: float = 90
     llm_max_retries: int = 1
     # Comma-separated models to try, in order, when LLM_MODEL fails (same provider and key).
     llm_fallback_models: str = ""
