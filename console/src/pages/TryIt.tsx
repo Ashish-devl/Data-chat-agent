@@ -3,7 +3,7 @@ import { type FormEvent, useRef, useState } from "react";
 import { type AskResponse, DataChatClient } from "datachat-agent";
 
 import { apiBase, getToken } from "../api";
-import { ErrorNote } from "../ui";
+import { ErrorNote, Table } from "../ui";
 
 interface Turn {
   question: string;
@@ -69,14 +69,14 @@ export function TryIt() {
               {t.answer || (!t.error && "Thinking…")}
               <ErrorNote error={t.error ?? (t.done?.error && !t.done.answer ? t.done.error : null)} />
               {t.rows && t.rows.length > 0 && t.columns && (
-                <table className="nested">
+                <Table className="nested">
                   <thead><tr>{t.columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
                   <tbody>
                     {t.rows.slice(0, 10).map((r, j) => (
                       <tr key={j}>{t.columns!.map((c) => <td key={c}>{String(r[c] ?? "")}</td>)}</tr>
                     ))}
                   </tbody>
-                </table>
+                </Table>
               )}
               {t.done && t.done.citations.length > 0 && (
                 <p className="muted small">

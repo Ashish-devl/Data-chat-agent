@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 
 import { api } from "../api";
-import { Badge, Empty, ErrorNote, Loading, Page, statusTone, useLoad, when } from "../ui";
+import { Badge, Empty, ErrorNote, Loading, Page, Table, statusTone, useLoad, when } from "../ui";
 
 interface Entry {
   id: string;
@@ -59,7 +59,7 @@ export function QueryLog() {
       <Loading show={page.loading && !page.data} />
       {page.data?.items.length === 0 && <Empty>Nothing matches.</Empty>}
       {page.data && page.data.items.length > 0 && (
-        <table>
+        <Table>
           <thead><tr><th>Question</th><th>Source</th><th>Rows</th><th>Rating</th><th>Time</th><th>When</th></tr></thead>
           <tbody>
             {page.data.items.map((q) => (
@@ -90,7 +90,7 @@ export function QueryLog() {
               </Fragment>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
       {total > PAGE && (
         <div className="pager">

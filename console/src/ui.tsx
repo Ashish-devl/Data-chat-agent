@@ -62,6 +62,15 @@ export function Page({ title, intro, actions, children }: {
   );
 }
 
+/** A table in a frame that scrolls sideways on narrow screens; the table itself stays full width. */
+export function Table({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <div className={`table-scroll${className ? " " + className : ""}`}>
+      <table>{children}</table>
+    </div>
+  );
+}
+
 export function ErrorNote({ error }: { error: string | null }) {
   return error ? <p className="error" role="alert">{error}</p> : null;
 }

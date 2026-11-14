@@ -2,6 +2,8 @@
 
 An open-source AI agent that answers plain-English questions from your SQL database and your PDFs, and shows the SQL or page each answer came from.
 
+![An answer from a supplier manual, citing the file and page](https://raw.githubusercontent.com/Ashish-devl/Data-chat-agent/main/docs/images/console-try-it.png)
+
 > Status: preview release 0.1.0 (week 8 of 8 toward v1.0). Not ready for production use yet.
 
 ## Bring your own model key
@@ -187,6 +189,12 @@ datachat-agent reset-password you@example.com
 
 Owners can do everything; members can ask questions and manage documents.
 
+![Console overview: questions, tokens and recent answers](https://raw.githubusercontent.com/Ashish-devl/Data-chat-agent/main/docs/images/console-overview.png)
+
+![A scanned database with the salary and phone columns hidden from the model](https://raw.githubusercontent.com/Ashish-devl/Data-chat-agent/main/docs/images/console-schema.png)
+
+![Uploaded PDFs with their status, pages and line items](https://raw.githubusercontent.com/Ashish-devl/Data-chat-agent/main/docs/images/console-documents.png)
+
 ## Five ways to use it
 
 ### 1. Python library (no server)
@@ -252,6 +260,8 @@ Optional: `data-connection`, `data-position="left"`, `data-color="#0f766e"`,
 `data-placeholder`. The widget streams answers, shows a small table and the sources, and has
 Helpful / Wrong buttons. Publishable keys cannot send `user_context`, so a connection with row
 filters refuses widget questions rather than guessing whose rows to show.
+
+![The chat widget on a company web page](https://raw.githubusercontent.com/Ashish-devl/Data-chat-agent/main/docs/images/widget.png)
 
 ### 5. MCP server (Claude Desktop, IDEs)
 

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 
 import { api, apiBase, del, getToken } from "../api";
-import { Badge, Empty, ErrorNote, Loading, Page, statusTone, useAction, useLoad, when } from "../ui";
+import { Badge, Empty, ErrorNote, Loading, Page, Table, statusTone, useAction, useLoad, when } from "../ui";
 
 interface Doc {
   id: string;
@@ -73,7 +73,7 @@ export function Documents() {
       <Loading show={list.loading && !list.data} />
       {list.data?.length === 0 && <Empty>No documents yet.</Empty>}
       {list.data && list.data.length > 0 && (
-        <table>
+        <Table>
           <thead>
             <tr><th>File</th><th>Status</th><th>Pages</th><th>Line items</th><th>Date on document</th><th>Uploaded</th><th /></tr>
           </thead>
@@ -110,7 +110,7 @@ export function Documents() {
               </Fragment>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
     </Page>
   );
@@ -120,7 +120,7 @@ function ItemsTable({ id }: { id: string }) {
   const items = useLoad(() => api<Item[]>(`/documents/${id}/items`), [id]);
   if (!items.data) return <Loading show />;
   return (
-    <table className="nested">
+    <Table className="nested">
       <thead><tr><th>Page</th><th>Item</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th></tr></thead>
       <tbody>
         {items.data.map((i) => (
@@ -130,6 +130,6 @@ function ItemsTable({ id }: { id: string }) {
           </tr>
         ))}
       </tbody>
-    </table>
+    </Table>
   );
 }

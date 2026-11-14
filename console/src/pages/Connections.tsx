@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from "react";
 
 import { api, del, patch, post } from "../api";
-import { Badge, Empty, ErrorNote, Loading, Page, statusTone, useAction, useLoad, when } from "../ui";
+import { Badge, Empty, ErrorNote, Loading, Page, Table, statusTone, useAction, useLoad, when } from "../ui";
 
 interface Connection {
   id: string;
@@ -64,7 +64,7 @@ export function Connections({ go }: { go: (path: string) => void }) {
       <Loading show={list.loading && !list.data} />
       {list.data?.length === 0 && <Empty>No database connected yet.</Empty>}
       {list.data && list.data.length > 0 && (
-        <table>
+        <Table>
           <thead><tr><th>Name</th><th>Database</th><th>Status</th><th>Last scan</th></tr></thead>
           <tbody>
             {list.data.map((c) => (
@@ -76,7 +76,7 @@ export function Connections({ go }: { go: (path: string) => void }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
 
       <form className="card" onSubmit={submit}>
@@ -188,7 +188,7 @@ function SchemaView({ tables, loading, error, reload }: {
             </label>
           </div>
           {open === t.id && (
-            <table>
+            <Table>
               <thead><tr><th>Column</th><th>Type</th><th>Examples</th><th>Description</th><th>Hidden</th></tr></thead>
               <tbody>
                 {t.columns.map((col) => (
@@ -216,7 +216,7 @@ function SchemaView({ tables, loading, error, reload }: {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           )}
         </div>
       ))}
@@ -235,7 +235,7 @@ function Terms({ connectionId }: { connectionId: string }) {
       <ErrorNote error={list.error ?? action.error} />
       {list.data?.length === 0 && <Empty>No business terms yet.</Empty>}
       {list.data && list.data.length > 0 && (
-        <table>
+        <Table>
           <thead><tr><th>Term</th><th>Meaning</th><th /></tr></thead>
           <tbody>
             {list.data.map((t) => (
@@ -247,7 +247,7 @@ function Terms({ connectionId }: { connectionId: string }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
       <form className="card row" onSubmit={async (e) => {
         e.preventDefault();

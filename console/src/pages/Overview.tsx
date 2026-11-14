@@ -1,5 +1,5 @@
 import { api, type Me } from "../api";
-import { Badge, ErrorNote, Loading, Page, statusTone, useLoad, when } from "../ui";
+import { Badge, ErrorNote, Loading, Page, Table, statusTone, useLoad, when } from "../ui";
 
 interface Usage {
   period_start: string;
@@ -71,7 +71,7 @@ export function Overview({ me }: { me: Me }) {
             <p className="empty">No questions yet. Try one on the <a href="#/try">Try it</a> page.</p>
           )}
           {recent.data && recent.data.items.length > 0 && (
-            <table>
+            <Table>
               <thead>
                 <tr><th>Question</th><th>Source</th><th>Rating</th><th>Time</th><th>When</th></tr>
               </thead>
@@ -86,7 +86,7 @@ export function Overview({ me }: { me: Me }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           )}
           <p><a href="#/log">See the whole query log</a></p>
         </>

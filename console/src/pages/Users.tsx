@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from "react";
 
 import { api, del, type Me, patch, post } from "../api";
-import { Badge, ErrorNote, Loading, OneTimeSecret, Page, useAction, useLoad, when } from "../ui";
+import { Badge, ErrorNote, Loading, OneTimeSecret, Page, Table, useAction, useLoad, when } from "../ui";
 
 interface User {
   id: string;
@@ -49,7 +49,7 @@ export function Users({ me }: { me: Me }) {
       <ErrorNote error={list.error ?? action.error} />
       <Loading show={list.loading && !list.data} />
       {list.data && (
-        <table>
+        <Table>
           <thead><tr><th>Person</th><th>Role</th><th>Last sign-in</th><th /></tr></thead>
           <tbody>
             {list.data.map((u) => (
@@ -82,7 +82,7 @@ export function Users({ me }: { me: Me }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
       <form className="card" onSubmit={submit}>
         <h2>Add a person</h2>

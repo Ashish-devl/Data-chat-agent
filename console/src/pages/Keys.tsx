@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from "react";
 
 import { api, apiBase, del, post } from "../api";
-import { Badge, Empty, ErrorNote, Loading, OneTimeSecret, Page, useAction, useLoad, when } from "../ui";
+import { Badge, Empty, ErrorNote, Loading, OneTimeSecret, Page, Table, useAction, useLoad, when } from "../ui";
 
 interface Key {
   id: string;
@@ -57,7 +57,7 @@ export function Keys() {
       <Loading show={list.loading && !list.data} />
       {list.data?.length === 0 && <Empty>No keys yet.</Empty>}
       {list.data && list.data.length > 0 && (
-        <table>
+        <Table>
           <thead><tr><th>Name</th><th>Key</th><th>Can</th><th>Last used</th><th /></tr></thead>
           <tbody>
             {list.data.map((k) => (
@@ -82,7 +82,7 @@ export function Keys() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
 
       <form className="card" onSubmit={submit}>
