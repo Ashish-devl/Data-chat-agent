@@ -4,6 +4,8 @@ An open-source AI agent that answers plain-English questions from your SQL datab
 
 ![An answer from a supplier manual, citing the file and page](https://raw.githubusercontent.com/Ashish-devl/Data-chat-agent/main/docs/images/console-try-it.png)
 
+**[Watch the 3-minute demo](https://github.com/Ashish-devl/Data-chat-agent/raw/main/docs/demo.mp4)**: connect a database, hide columns, upload PDFs, ask questions, and put the chat widget on a web page.
+
 > Status: preview release 0.1.0 (week 8 of 8 toward v1.0). Not ready for production use yet.
 
 ## Bring your own model key
